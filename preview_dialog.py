@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
-from screen_church.constants import IMAGE_EXTENSIONS
+from constants import IMAGE_EXTENSIONS
 
 
 class PreviewDialog(QDialog):

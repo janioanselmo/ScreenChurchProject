@@ -19,7 +19,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from screen_church.constants import (
+from constants import (
     APP_NAME,
     DEFAULT_PANEL_HEIGHT,
     DEFAULT_PANEL_WIDTH,
@@ -33,9 +33,9 @@ from screen_church.constants import (
     SHORTCUT_HELP_TEXT,
     SUPPORTED_EXTENSIONS,
 )
-from screen_church.media_widget import MediaWidget
-from screen_church.preview_dialog import PreviewDialog
-from screen_church.projection_settings_dialog import ProjectionSettingsDialog
+from media_widget import MediaWidget
+from preview_dialog import PreviewDialog
+from projection_settings_dialog import ProjectionSettingsDialog
 
 
 class MainWindow(QMainWindow):

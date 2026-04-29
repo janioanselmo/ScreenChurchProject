@@ -2,7 +2,7 @@ import sys
 
 from PyQt5.QtWidgets import QApplication
 
-from screen_church.main_window import MainWindow
+from main_window import MainWindow
 
 
 def main():

@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
-from screen_church.constants import (
+from constants import (
     DEFAULT_PANEL_HEIGHT,
     DEFAULT_PANEL_WIDTH,
     IMAGE_EXTENSIONS,

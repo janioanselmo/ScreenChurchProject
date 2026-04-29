@@ -31,12 +31,12 @@ O projeto usa **PyQt5** para criar uma janela com três painéis independentes. 
 | Arquivo | Descrição |
 | --- | --- |
 | `screenChurch.py` | Ponto de entrada da aplicação |
-| `screen_church/app.py` | Inicialização do QApplication |
-| `screen_church/main_window.py` | Janela principal, atalhos, monitores, playlists e sessão |
-| `screen_church/media_widget.py` | Componente reutilizável para imagem/vídeo |
-| `screen_church/preview_dialog.py` | Pré-visualização antes de enviar mídia |
-| `screen_church/projection_settings_dialog.py` | Configuração de dimensões dos painéis |
-| `screen_church/constants.py` | Constantes, extensões e textos compartilhados |
+| `app.py` | Inicialização do QApplication |
+| `main_window.py` | Janela principal, atalhos, monitores, playlists e sessão |
+| `media_widget.py` | Componente reutilizável para imagem/vídeo |
+| `preview_dialog.py` | Pré-visualização antes de enviar mídia |
+| `projection_settings_dialog.py` | Configuração de dimensões dos painéis |
+| `constants.py` | Constantes, extensões e textos compartilhados |
 | `build_windows.ps1` | Script base para gerar executável Windows com PyInstaller |
 | `requirements.txt` | Dependências Python do projeto |
 | `LICENSE` | Licença do repositório |
@@ -143,12 +143,12 @@ The project uses **PyQt5** to create a window with three independent panels. Eac
 | File | Description |
 | --- | --- |
 | `screenChurch.py` | Application entry point |
-| `screen_church/app.py` | QApplication bootstrap |
-| `screen_church/main_window.py` | Main window, shortcuts, monitors, playlists, and session |
-| `screen_church/media_widget.py` | Reusable image/video media component |
-| `screen_church/preview_dialog.py` | Preview before sending media |
-| `screen_church/projection_settings_dialog.py` | Panel dimension configuration |
-| `screen_church/constants.py` | Shared constants, extensions, and text |
+| `app.py` | QApplication bootstrap |
+| `main_window.py` | Main window, shortcuts, monitors, playlists, and session |
+| `media_widget.py` | Reusable image/video media component |
+| `preview_dialog.py` | Preview before sending media |
+| `projection_settings_dialog.py` | Panel dimension configuration |
+| `constants.py` | Shared constants, extensions, and text |
 | `build_windows.ps1` | Base script for building a Windows executable with PyInstaller |
 | `requirements.txt` | Python dependencies |
 | `LICENSE` | Repository license |

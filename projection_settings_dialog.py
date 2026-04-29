@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
 )
 
-from screen_church.constants import (
+from constants import (
     MAX_PANEL_HEIGHT,
     MAX_PANEL_WIDTH,
     MIN_PANEL_HEIGHT,
