@@ -1,2 +1,6 @@
-PyQt5>=5.15,<5.16
-pyinstaller>=6.0,<7.0
+# Interface gráfica
+PyQt5>=5.15.11,<5.16
+
+# Boas práticas para empacotamento/instalação
+setuptools>=70.0
+wheel>=0.43
