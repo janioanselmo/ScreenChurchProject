@@ -221,3 +221,16 @@ Videos:
 ### License
 
 See `LICENSE`.
+
+### Auditoria / Audit
+#### PT-BR
+- O estado da apresentacao e a trilha de midia devem ficar separados para nao misturar operacao com renderizacao.
+- Letras, textos e programacao precisam ter origem, formato e licenca documentados.
+- Se houver cache local ou lista de arquivos, a validacao de caminho e formato deve ser explicita.
+- O build de distribuicao precisa ser reproduzivel e nao depender de ajustes manuais na maquina de origem.
+#### EN
+- Presentation state and the media playlist should remain separated so operation does not blend into rendering.
+- Lyrics, texts and scheduling need documented origin, format and license.
+- If there is local cache or a file list, path and format validation must be explicit.
+- The distribution build needs to be reproducible and not rely on manual tweaks on the source machine.
+
