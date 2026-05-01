@@ -1,48 +1,60 @@
 # ScreenChurchProject
 
-## 🇧🇷 PT-BR
+## PT-BR
 
-Aplicativo desktop em Python para exibir imagens e vídeos em três áreas simultâneas, pensado para telas de apoio, projeção e organização visual em ambientes de igreja.
+Aplicativo desktop em Python para exibir imagens e videos em tres areas simultaneas, pensado para apoio, projeção e operacao em ambientes de igreja.
 
-### Visão Geral
+### Visao Geral
 
-O projeto usa **PyQt5** para criar uma janela com três painéis independentes. Cada painel pode carregar mídia local, usar playlist própria, ter dimensões personalizadas em pixels e ser operado em tela cheia no monitor/projetor escolhido.
+O projeto usa **PyQt5** para criar uma janela com tres painéis independentes. Cada painel pode carregar midia local, usar lista propria, ter dimensoes customizadas em pixels e ser operado em tela cheia no monitor ou projetor escolhido.
 
 ### Funcionalidades
 
-- Interface gráfica desktop com PyQt5.
-- Três áreas independentes de mídia.
-- Carregamento individual de mídia para cada área.
-- Suporte a imagens e vídeos.
-- Reprodução automática de vídeos ao carregar o arquivo.
-- Configuração de largura e altura em pixels para cada painel.
-- Pré-visualização antes de enviar mídia para um painel.
-- Playlist independente por painel, com navegação anterior/próxima.
-- Blackout rápido para apagar temporariamente a projeção.
-- Loop de vídeos e avanço automático em playlists de imagens.
-- Modo operação para ocultar controles por painel durante o uso.
-- Exportação/importação de presets de configuração.
-- Transição suave ao trocar imagens.
-- Seleção de monitor/projetor.
-- Atalhos de teclado para operação durante cultos/eventos.
+- Interface desktop com PyQt5.
+- Tres areas independentes de midia.
+- Carregamento individual de midia para cada painel.
+- Suporte a imagens e videos.
+- Reproducao automatica de videos ao carregar o arquivo.
+- Configuracao de largura e altura em pixels para cada painel.
+- Pre-visualizacao antes de enviar a midia para o painel.
+- Status visivel na janela principal com saida ativa e estado global.
+- Status por painel com nome do arquivo e estado de reproducao.
+- Confirmacao na barra de status quando uma midia e enviada.
+- Historico recente por painel.
+- Lista independente por painel, com navegacao anterior/proxima.
+- Tela preta rapida para ocultar a projecao.
+- Loop de videos e avanco automatico em listas de imagens.
+- Modo para ocultar os controles dos painéis durante o uso.
+- Exportacao e importacao de presets de configuracao.
+- Transicao suave ao trocar imagens.
+- Selecao de monitor ou projetor.
+- Atalhos de teclado para operacao durante cultos e eventos.
+- Ajuda de primeira execucao.
+
+### Fluxo de Uso
+
+1. Selecione o monitor ou projetor.
+2. Clique em `Selecionar midia` em um painel.
+3. Confirme em `Enviar para o painel`.
+4. Use `Tela cheia` para projetar.
 
 ### Estrutura
 
-| Arquivo | Descrição |
+| Arquivo | Descricao |
 | --- | --- |
-| `screenChurch.py` | Ponto de entrada da aplicação |
-| `app.py` | Inicialização do QApplication |
-| `main_window.py` | Janela principal, atalhos, monitores, playlists e sessão |
-| `media_widget.py` | Componente reutilizável para imagem/vídeo |
-| `preview_dialog.py` | Pré-visualização antes de enviar mídia |
-| `projection_settings_dialog.py` | Configuração de dimensões dos painéis |
-| `constants.py` | Constantes, extensões e textos compartilhados |
-| `build_windows.ps1` | Script base para gerar executável Windows com PyInstaller |
-| `requirements.txt` | Dependências Python do projeto |
-| `LICENSE` | Licença do repositório |
+| `screenChurch.py` | Ponto de entrada da aplicacao |
+| `app.py` | Bootstrap do `QApplication` |
+| `main_window.py` | Janela principal, atalhos, monitores, listas, status e sessao |
+| `media_widget.py` | Componente reutilizavel para imagem e video |
+| `preview_dialog.py` | Pre-visualizacao antes de enviar a midia |
+| `projection_settings_dialog.py` | Configuracao de dimensoes dos painéis |
+| `constants.py` | Constantes, extensoes, textos e limites compartilhados |
+| `build_windows.ps1` | Script base para gerar executavel Windows com PyInstaller |
+| `requirements.txt` | Dependencias Python do projeto |
+| `LICENSE` | Licenca do repositorio |
 | `.gitignore` | Regras de arquivos ignorados pelo Git |
 
-### Instalação
+### Instalacao
 
 ```powershell
 python -m venv .venv
@@ -50,13 +62,13 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### Execução
+### Execucao
 
 ```powershell
 python screenChurch.py
 ```
 
-### Gerar Executável Windows
+### Gerar Executavel Windows
 
 ```powershell
 .\build_windows.ps1
@@ -72,7 +84,7 @@ Imagens:
 - `.bmp`
 - `.gif`
 
-Vídeos:
+Videos:
 
 - `.mp4`
 - `.avi`
@@ -85,70 +97,76 @@ Vídeos:
 
 - `F11`: alternar tela cheia.
 - `Esc`: sair da tela cheia.
-- `B`: alternar blackout.
-- `Ctrl+1/2/3`: carregar mídia nos painéis 1, 2 ou 3.
+- `B`: alternar tela preta.
+- `Ctrl+1/2/3`: carregar midia nos painéis 1, 2 ou 3.
+- `Ctrl+Shift+1/2/3`: abrir a midia recente de cada painel.
 - `Alt+1/2/3`: limpar os painéis 1, 2 ou 3.
-- `Ctrl+,`: abrir configurações de projeção.
+- `Ctrl+,`: abrir ajustes de projeção.
 
-### Observações Técnicas
+### Notas Tecnicas
 
 - O projeto depende de `PyQt5>=5.15,<5.16`.
 - O empacotamento para Windows usa `PyInstaller`.
-- A reprodução de vídeo usa `QMediaPlayer` e `QVideoWidget`.
+- A reproducao de video usa `QMediaPlayer` e `QVideoWidget`.
 - O suporte real a codecs pode variar conforme o sistema operacional e os codecs instalados.
-- O layout atual abre uma janela de `1440x560`, dividida em três painéis horizontais.
-- As dimensões de cada painel podem ser ajustadas em pixels nas configurações.
+- O layout atual abre uma janela de `1440x560`, dividida em tres painéis horizontais.
+- As dimensoes de cada painel podem ser ajustadas em pixels nas configuracoes.
 
-### Melhorias Futuras
-
-- Adicionar controle remoto por celular/tablet na rede local.
-- Integrar letras de músicas e textos bíblicos.
-- Adicionar agenda de culto com sequência de cenas.
-- Criar biblioteca interna de mídia com tags e busca.
-
-### Licença
+### Licenca
 
 Consulte `LICENSE`.
 
 ---
 
-## 🇺🇸 English
+## English
 
-Desktop Python application for displaying images and videos across three simultaneous areas, designed for support screens, projection, and visual organization in church environments.
+Desktop Python application for displaying images and videos across three simultaneous areas, designed for church support screens, projection, and live operation.
 
 ### Overview
 
-The project uses **PyQt5** to create a window with three independent panels. Each panel can load local media, use its own playlist, have custom pixel dimensions, and run fullscreen on the selected monitor/projector.
+The project uses **PyQt5** to create a window with three independent panels. Each panel can load local media, use its own list, have custom pixel dimensions, and run fullscreen on the selected monitor or projector.
 
 ### Features
 
 - Desktop GUI built with PyQt5.
 - Three independent media areas.
-- Individual media loading for each area.
+- Individual media loading for each panel.
 - Image and video support.
 - Automatic video playback after loading.
 - Width and height configuration in pixels for each panel.
 - Preview before sending media to a panel.
-- Independent playlist per panel, with previous/next navigation.
-- Quick blackout to temporarily blank the projection.
-- Video loop and automatic image playlist advance.
+- Visible main-window status with active output and global state.
+- Per-panel status with filename and playback state.
+- Status-bar confirmation when media is sent.
+- Recent-media history per panel.
+- Independent list per panel, with previous/next navigation.
+- Quick blackout to hide the projection.
+- Video loop and automatic image list advance.
 - Operation mode to hide per-panel controls during live use.
-- Configuration preset export/import.
+- Configuration preset export and import.
 - Smooth transition when changing images.
 - Monitor/projector selection.
-- Keyboard shortcuts for church service/event operation.
+- Keyboard shortcuts for church service and event operation.
+- First-run help dialog.
+
+### Usage Flow
+
+1. Select the monitor or projector.
+2. Click `Selecionar midia` in a panel.
+3. Confirm with `Enviar para o painel`.
+4. Use `Tela cheia` to project.
 
 ### Structure
 
 | File | Description |
 | --- | --- |
 | `screenChurch.py` | Application entry point |
-| `app.py` | QApplication bootstrap |
-| `main_window.py` | Main window, shortcuts, monitors, playlists, and session |
-| `media_widget.py` | Reusable image/video media component |
+| `app.py` | `QApplication` bootstrap |
+| `main_window.py` | Main window, shortcuts, monitors, lists, status, and session |
+| `media_widget.py` | Reusable image and video media component |
 | `preview_dialog.py` | Preview before sending media |
 | `projection_settings_dialog.py` | Panel dimension configuration |
-| `constants.py` | Shared constants, extensions, and text |
+| `constants.py` | Shared constants, extensions, texts, and limits |
 | `build_windows.ps1` | Base script for building a Windows executable with PyInstaller |
 | `requirements.txt` | Python dependencies |
 | `LICENSE` | Repository license |
@@ -199,6 +217,7 @@ Videos:
 - `Esc`: exit fullscreen.
 - `B`: toggle blackout.
 - `Ctrl+1/2/3`: load media into panels 1, 2, or 3.
+- `Ctrl+Shift+1/2/3`: open the recent media for each panel.
 - `Alt+1/2/3`: clear panels 1, 2, or 3.
 - `Ctrl+,`: open projection settings.
 
@@ -211,26 +230,6 @@ Videos:
 - The current layout opens a `1440x560` window split into three horizontal panels.
 - Each panel dimension can be adjusted in pixels from the settings window.
 
-### Future Improvements
-
-- Add mobile/tablet remote control over the local network.
-- Integrate song lyrics and Bible texts.
-- Add service schedule support with scene sequencing.
-- Create an internal media library with tags and search.
-
 ### License
 
 See `LICENSE`.
-
-### Auditoria / Audit
-#### PT-BR
-- O estado da apresentacao e a trilha de midia devem ficar separados para nao misturar operacao com renderizacao.
-- Letras, textos e programacao precisam ter origem, formato e licenca documentados.
-- Se houver cache local ou lista de arquivos, a validacao de caminho e formato deve ser explicita.
-- O build de distribuicao precisa ser reproduzivel e nao depender de ajustes manuais na maquina de origem.
-#### EN
-- Presentation state and the media playlist should remain separated so operation does not blend into rendering.
-- Lyrics, texts and scheduling need documented origin, format and license.
-- If there is local cache or a file list, path and format validation must be explicit.
-- The distribution build needs to be reproducible and not rely on manual tweaks on the source machine.
-
