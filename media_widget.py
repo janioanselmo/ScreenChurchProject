@@ -24,10 +24,11 @@ class MediaWidget(QWidget):
     statusChanged = pyqtSignal()
     mediaError = pyqtSignal(str)
 
-    def __init__(self, panel_number, parent=None):
+    def __init__(self, panel_number, parent=None, show_overlay=True):
         super().__init__(parent)
 
         self.panel_number = panel_number
+        self.show_overlay = show_overlay
         self.current_path = ""
         self.current_type = ""
         self.panel_width = DEFAULT_PANEL_WIDTH
@@ -72,7 +73,7 @@ class MediaWidget(QWidget):
             "font-size: 11px;"
         )
         self.overlay_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.overlay_label.setVisible(True)
+        self.overlay_label.setVisible(self.show_overlay)
         self._overlay_text = ""
 
         self.clear_media()
@@ -146,6 +147,9 @@ class MediaWidget(QWidget):
 
     def set_loop_enabled(self, enabled):
         self.loop_enabled = enabled
+
+    def set_muted(self, muted):
+        self.media_player.setMuted(muted)
 
     def show_image_page(self):
         self.blackout_enabled = False
@@ -234,6 +238,9 @@ class MediaWidget(QWidget):
         self.update_overlay_geometry()
 
     def update_overlay_geometry(self):
+        if not self.show_overlay:
+            return
+
         self.overlay_label.setGeometry(0, self.height() - 24, self.width(), 24)
         self.overlay_label.raise_()
 

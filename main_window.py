@@ -39,6 +39,7 @@ from constants import (
 from media_widget import MediaWidget
 from preview_dialog import PreviewDialog
 from projection_settings_dialog import ProjectionSettingsDialog
+from projection_window import ProjectionWindow
 
 
 class MainWindow(QMainWindow):
@@ -49,6 +50,10 @@ class MainWindow(QMainWindow):
         self.media_widgets = [
             MediaWidget(index + 1) for index in range(PANEL_COUNT)
         ]
+        self.projection_window = ProjectionWindow()
+        self.projection_window.projectionHidden.connect(
+            self.handle_projection_hidden
+        )
         self.playlists = [[] for _index in range(PANEL_COUNT)]
         self.playlist_positions = [0 for _index in range(PANEL_COUNT)]
         self.recent_media = [[] for _index in range(PANEL_COUNT)]
@@ -77,7 +82,7 @@ class MainWindow(QMainWindow):
         self.blackout_button = QPushButton("Tela preta")
         self.mode_button = QPushButton("Ocultar controles")
         self.settings_button = QPushButton("Ajustes")
-        self.fullscreen_button = QPushButton("Tela cheia")
+        self.fullscreen_button = QPushButton("Projetar")
         self.active_output_label = QLabel()
         self.global_state_label = QLabel()
 
@@ -238,40 +243,59 @@ class MainWindow(QMainWindow):
         if not screen:
             return
 
-        geometry = screen.availableGeometry()
-        if self.isFullScreen():
-            self.setGeometry(geometry)
-            self.showFullScreen()
-        else:
-            width = min(DEFAULT_WINDOW_WIDTH, geometry.width())
-            height = min(DEFAULT_WINDOW_HEIGHT, geometry.height())
-            left = geometry.x() + max(0, (geometry.width() - width) // 2)
-            top = geometry.y() + max(0, (geometry.height() - height) // 2)
-            self.setGeometry(left, top, width, height)
-
+        self.projection_window.set_output_screen(screen)
         self.save_session()
         self.update_global_status()
 
     def toggle_fullscreen(self):
-        if self.isFullScreen():
+        if self.is_projection_active():
             self.exit_fullscreen()
             return
 
         self.move_to_selected_monitor()
-        self.showFullScreen()
-        self.fullscreen_button.setText("Sair da tela cheia")
+        self.projection_window.show_projection()
+        self.sync_preview_audio()
+        self.sync_projection_playback()
+        self.fullscreen_button.setText("Parar projecao")
         self.save_session()
         self.update_global_status()
 
     def exit_fullscreen(self):
-        if not self.isFullScreen():
+        if not self.is_projection_active():
             return
 
-        self.showNormal()
-        self.fullscreen_button.setText("Tela cheia")
-        self.move_to_selected_monitor()
+        self.projection_window.hide_projection()
+        self.sync_preview_audio()
+        self.sync_projection_playback()
+        self.fullscreen_button.setText("Projetar")
         self.save_session()
         self.update_global_status()
+
+    def is_projection_active(self):
+        return self.projection_window.isVisible()
+
+    def handle_projection_hidden(self):
+        self.sync_preview_audio()
+        self.sync_projection_playback()
+        self.fullscreen_button.setText("Projetar")
+        self.save_session()
+        self.update_global_status()
+
+    def sync_preview_audio(self):
+        preview_muted = self.is_projection_active()
+        for media_widget in self.media_widgets:
+            media_widget.set_muted(preview_muted)
+
+    def sync_projection_playback(self):
+        projection_active = self.is_projection_active()
+        for media_widget in self.projection_window.media_widgets:
+            media_widget.set_muted(not projection_active)
+            if media_widget.current_type != "video":
+                continue
+            if projection_active and not media_widget.blackout_enabled:
+                media_widget.media_player.play()
+            else:
+                media_widget.media_player.pause()
 
     def open_media(self, panel_index, _checked=False):
         filename, _selected_filter = QFileDialog.getOpenFileName(
@@ -360,6 +384,16 @@ class MainWindow(QMainWindow):
             )
             return False
 
+        self.media_widgets[panel_index].set_blackout(self.blackout_enabled)
+        self.media_widgets[panel_index].set_muted(self.is_projection_active())
+        self.projection_window.media_widgets[panel_index].load_media(filename)
+        self.projection_window.media_widgets[panel_index].set_loop_enabled(
+            self.loop_checkbox.isChecked()
+        )
+        self.projection_window.media_widgets[panel_index].set_blackout(
+            self.blackout_enabled
+        )
+        self.sync_projection_playback()
         if track_recent:
             self.record_recent_media(panel_index, filename)
         self.refresh_panel_status(panel_index)
@@ -379,6 +413,11 @@ class MainWindow(QMainWindow):
 
     def clear_panel(self, panel_index, _checked=False):
         self.media_widgets[panel_index].clear_media()
+        self.media_widgets[panel_index].set_blackout(self.blackout_enabled)
+        self.projection_window.media_widgets[panel_index].clear_media()
+        self.projection_window.media_widgets[panel_index].set_blackout(
+            self.blackout_enabled
+        )
         self.playlists[panel_index] = []
         self.playlist_positions[panel_index] = 0
         self.save_session()
@@ -404,6 +443,7 @@ class MainWindow(QMainWindow):
         for media_widget, (width, height) in zip(self.media_widgets, panel_sizes):
             media_widget.set_panel_size(width, height)
 
+        self.projection_window.set_panel_sizes(panel_sizes)
         self.adjustSize()
         self.update_global_status()
 
@@ -424,7 +464,10 @@ class MainWindow(QMainWindow):
         self.blackout_enabled = not self.blackout_enabled
         for media_widget in self.media_widgets:
             media_widget.set_blackout(self.blackout_enabled)
+        for media_widget in self.projection_window.media_widgets:
+            media_widget.set_blackout(self.blackout_enabled)
 
+        self.sync_projection_playback()
         self.blackout_button.setText(
             "Restaurar tela" if self.blackout_enabled else "Tela preta"
         )
@@ -435,6 +478,8 @@ class MainWindow(QMainWindow):
 
     def set_loop_enabled(self, enabled):
         for media_widget in self.media_widgets:
+            media_widget.set_loop_enabled(enabled)
+        for media_widget in self.projection_window.media_widgets:
             media_widget.set_loop_enabled(enabled)
 
         self.save_session()
@@ -521,16 +566,19 @@ class MainWindow(QMainWindow):
     def update_global_status(self):
         selected_screen = self.selected_screen()
         if selected_screen:
-            geometry = selected_screen.availableGeometry()
+            geometry = selected_screen.geometry()
+            projection_width = self.projection_window.width()
+            projection_height = self.projection_window.height()
             monitor_text = (
                 f"Saida ativa: {self.monitor_combo.currentText()} "
-                f"({geometry.width()}x{geometry.height()})"
+                f"({geometry.width()}x{geometry.height()}); "
+                f"projecao {projection_width}x{projection_height}"
             )
         else:
             monitor_text = "Saida ativa: nenhuma"
 
         state_bits = [
-            "Tela cheia" if self.isFullScreen() else "Janela",
+            "Projetando" if self.is_projection_active() else "Projecao parada",
             "Blackout" if self.blackout_enabled else "Conteudo visivel",
             "Controles ocultos" if self.is_operation_mode else "Controles visiveis",
             "Loop" if self.loop_checkbox.isChecked() else "Sem loop",
@@ -618,7 +666,7 @@ class MainWindow(QMainWindow):
 
     def save_session(self):
         self.settings.setValue("screen_index", self.monitor_combo.currentData() or 0)
-        self.settings.setValue("fullscreen", self.isFullScreen())
+        self.settings.setValue("fullscreen", self.is_projection_active())
         self.settings.setValue("operation_mode", self.is_operation_mode)
         self.settings.setValue("blackout", self.blackout_enabled)
         self.settings.setValue("loop", self.loop_checkbox.isChecked())
@@ -646,7 +694,7 @@ class MainWindow(QMainWindow):
     def session_data(self):
         return {
             "screen_index": self.monitor_combo.currentData() or 0,
-            "fullscreen": self.isFullScreen(),
+            "fullscreen": self.is_projection_active(),
             "operation_mode": self.is_operation_mode,
             "blackout": self.blackout_enabled,
             "loop": self.loop_checkbox.isChecked(),
@@ -756,7 +804,7 @@ class MainWindow(QMainWindow):
             ][:RECENT_MEDIA_LIMIT]
 
     def apply_session_data(self, data):
-        if self.isFullScreen():
+        if self.is_projection_active():
             self.exit_fullscreen()
         if self.is_operation_mode:
             self.toggle_operation_mode()
@@ -827,4 +875,5 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.save_session()
+        self.projection_window.close()
         super().closeEvent(event)

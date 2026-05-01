@@ -25,7 +25,7 @@ MEDIA_FILE_FILTER = (
 )
 
 SHORTCUT_HELP_TEXT = (
-    "Atalhos: F11 tela cheia | Esc sair da tela cheia | "
+    "Atalhos: F11 projetar/parar | Esc parar projecao | "
     "Ctrl+1/2/3 carregar | Alt+1/2/3 limpar | "
     "Ctrl+Shift+1/2/3 recentes | B blackout | Ctrl+, configuracoes"
 )
@@ -35,6 +35,7 @@ FIRST_RUN_HELP_TEXT = (
     "1. Selecione o monitor/projetor.\n"
     "2. Carregue a midia em um painel.\n"
     "3. Confirme em 'Enviar para o painel'.\n"
-    "4. Use 'Tela cheia' para projetar.\n\n"
-    "O status no topo mostra a saida ativa e o estado de cada painel."
+    "4. Use 'Projetar' para abrir a saida unica no monitor selecionado.\n\n"
+    "A projecao usa a tela estendida do Windows e a largura total "
+    "e a soma das tres partes configuradas."
 )
