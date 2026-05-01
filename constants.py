@@ -12,6 +12,7 @@ MAX_PANEL_WIDTH = 7680
 MAX_PANEL_HEIGHT = 4320
 IMAGE_SLIDE_INTERVAL_MS = 8000
 PANEL_COUNT = 3
+RECENT_MEDIA_LIMIT = 5
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif"}
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".wmv", ".mkv", ".flv"}
@@ -26,5 +27,14 @@ MEDIA_FILE_FILTER = (
 SHORTCUT_HELP_TEXT = (
     "Atalhos: F11 tela cheia | Esc sair da tela cheia | "
     "Ctrl+1/2/3 carregar | Alt+1/2/3 limpar | "
-    "B blackout | Ctrl+, configuracoes"
+    "Ctrl+Shift+1/2/3 recentes | B blackout | Ctrl+, configuracoes"
+)
+
+FIRST_RUN_HELP_TEXT = (
+    "Uso rapido:\n\n"
+    "1. Selecione o monitor/projetor.\n"
+    "2. Carregue a midia em um painel.\n"
+    "3. Confirme em 'Enviar para o painel'.\n"
+    "4. Use 'Tela cheia' para projetar.\n\n"
+    "O status no topo mostra a saida ativa e o estado de cada painel."
 )

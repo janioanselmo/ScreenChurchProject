@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QMenu,
     QPushButton,
     QShortcut,
     QVBoxLayout,
@@ -25,11 +26,13 @@ from constants import (
     DEFAULT_PANEL_WIDTH,
     DEFAULT_WINDOW_HEIGHT,
     DEFAULT_WINDOW_WIDTH,
+    FIRST_RUN_HELP_TEXT,
     IMAGE_SLIDE_INTERVAL_MS,
     MEDIA_FILE_FILTER,
     ORGANIZATION_NAME,
     PANEL_COUNT,
     PRESET_FILE_EXTENSION,
+    RECENT_MEDIA_LIMIT,
     SHORTCUT_HELP_TEXT,
     SUPPORTED_EXTENSIONS,
 )
@@ -48,7 +51,9 @@ class MainWindow(QMainWindow):
         ]
         self.playlists = [[] for _index in range(PANEL_COUNT)]
         self.playlist_positions = [0 for _index in range(PANEL_COUNT)]
+        self.recent_media = [[] for _index in range(PANEL_COUNT)]
         self.panel_control_widgets = []
+        self.panel_status_labels = []
         self.is_operation_mode = False
         self.blackout_enabled = False
         self.image_timer = QTimer(self)
@@ -62,16 +67,19 @@ class MainWindow(QMainWindow):
             DEFAULT_WINDOW_WIDTH,
             DEFAULT_WINDOW_HEIGHT,
         )
+        self.statusBar().setStyleSheet("padding: 2px 8px;")
 
         self.monitor_combo = QComboBox()
         self.loop_checkbox = QCheckBox("Loop")
         self.loop_checkbox.setChecked(True)
         self.import_button = QPushButton("Importar")
         self.export_button = QPushButton("Exportar")
-        self.blackout_button = QPushButton("Blackout")
-        self.mode_button = QPushButton("Modo operacao")
-        self.settings_button = QPushButton("Configuracoes")
+        self.blackout_button = QPushButton("Tela preta")
+        self.mode_button = QPushButton("Ocultar controles")
+        self.settings_button = QPushButton("Ajustes")
         self.fullscreen_button = QPushButton("Tela cheia")
+        self.active_output_label = QLabel()
+        self.global_state_label = QLabel()
 
         self.loop_checkbox.toggled.connect(self.set_loop_enabled)
         self.import_button.clicked.connect(self.import_preset)
@@ -99,6 +107,16 @@ class MainWindow(QMainWindow):
         toolbar_layout.addWidget(self.settings_button)
         toolbar_layout.addWidget(self.fullscreen_button)
 
+        status_layout = QHBoxLayout()
+        self.active_output_label.setStyleSheet(
+            "font-weight: 600; color: #0b4d2a; padding: 4px 8px;"
+        )
+        self.global_state_label.setStyleSheet(
+            "color: #333; padding: 4px 8px; border-left: 1px solid #ccc;"
+        )
+        status_layout.addWidget(self.active_output_label, 1)
+        status_layout.addWidget(self.global_state_label, 1)
+
         panel_layout = QHBoxLayout()
         for index, media_widget in enumerate(self.media_widgets):
             panel_layout.addWidget(self.build_panel(index, media_widget))
@@ -110,26 +128,41 @@ class MainWindow(QMainWindow):
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.addLayout(toolbar_layout)
+        layout.addLayout(status_layout)
         layout.addLayout(panel_layout)
         layout.addWidget(shortcut_label)
 
         self.setCentralWidget(container)
+        self.update_global_status()
 
     def build_panel(self, index, media_widget):
-        load_button = QPushButton(f"Carregar midia {index + 1}")
-        playlist_button = QPushButton("Playlist")
+        load_button = QPushButton("Selecionar midia")
+        recent_button = QPushButton("Recentes")
+        playlist_button = QPushButton("Lista")
         previous_button = QPushButton("Anterior")
         next_button = QPushButton("Proxima")
-        clear_button = QPushButton(f"Limpar {index + 1}")
+        clear_button = QPushButton("Limpar painel")
+        status_label = QLabel(self.panel_status_text(media_widget))
+        status_label.setWordWrap(True)
+        status_label.setStyleSheet(
+            "font-size: 11px; color: #333; padding: 4px 6px;"
+            "background-color: #f4f4f4; border: 1px solid #d8d8d8;"
+        )
 
         load_button.clicked.connect(partial(self.open_media, index))
+        recent_button.clicked.connect(
+            partial(self.show_recent_media_menu, index, recent_button)
+        )
         playlist_button.clicked.connect(partial(self.add_playlist_items, index))
         previous_button.clicked.connect(partial(self.previous_playlist_item, index))
         next_button.clicked.connect(partial(self.next_playlist_item, index))
         clear_button.clicked.connect(partial(self.clear_panel, index))
+        media_widget.statusChanged.connect(partial(self.refresh_panel_status, index))
+        media_widget.mediaError.connect(self.show_media_error)
 
         button_layout = QHBoxLayout()
         button_layout.addWidget(load_button)
+        button_layout.addWidget(recent_button)
         button_layout.addWidget(playlist_button)
         button_layout.addWidget(previous_button)
         button_layout.addWidget(next_button)
@@ -138,11 +171,14 @@ class MainWindow(QMainWindow):
         controls = QWidget()
         controls.setLayout(button_layout)
         self.panel_control_widgets.append(controls)
+        self.panel_status_labels.append(status_label)
 
         panel_container = QWidget()
         panel_container_layout = QVBoxLayout(panel_container)
         panel_container_layout.addWidget(media_widget)
+        panel_container_layout.addWidget(status_label)
         panel_container_layout.addWidget(controls)
+        self.refresh_panel_status(index)
         return panel_container
 
     def bind_shortcuts(self):
@@ -165,6 +201,11 @@ class MainWindow(QMainWindow):
                 QKeySequence(f"Alt+{index + 1}"),
                 self,
                 activated=partial(self.clear_panel, index),
+            )
+            QShortcut(
+                QKeySequence(f"Ctrl+Shift+{index + 1}"),
+                self,
+                activated=partial(self.load_most_recent_media, index),
             )
 
     def populate_monitors(self):
@@ -209,6 +250,7 @@ class MainWindow(QMainWindow):
             self.setGeometry(left, top, width, height)
 
         self.save_session()
+        self.update_global_status()
 
     def toggle_fullscreen(self):
         if self.isFullScreen():
@@ -219,6 +261,7 @@ class MainWindow(QMainWindow):
         self.showFullScreen()
         self.fullscreen_button.setText("Sair da tela cheia")
         self.save_session()
+        self.update_global_status()
 
     def exit_fullscreen(self):
         if not self.isFullScreen():
@@ -228,6 +271,7 @@ class MainWindow(QMainWindow):
         self.fullscreen_button.setText("Tela cheia")
         self.move_to_selected_monitor()
         self.save_session()
+        self.update_global_status()
 
     def open_media(self, panel_index, _checked=False):
         filename, _selected_filter = QFileDialog.getOpenFileName(
@@ -254,7 +298,7 @@ class MainWindow(QMainWindow):
     def add_playlist_items(self, panel_index, _checked=False):
         filenames, _selected_filter = QFileDialog.getOpenFileNames(
             self,
-            f"Selecione uma playlist para o painel {panel_index + 1}",
+            f"Selecione uma lista para o painel {panel_index + 1}",
             "",
             MEDIA_FILE_FILTER,
         )
@@ -267,8 +311,16 @@ class MainWindow(QMainWindow):
 
         self.playlists[panel_index] = supported_files
         self.playlist_positions[panel_index] = 0
-        self.load_panel_media(panel_index, supported_files[0])
+        self.load_panel_media(
+            panel_index,
+            supported_files[0],
+            announce=False,
+            track_recent=False,
+        )
         self.save_session()
+        self.show_status_message(
+            f"Painel {panel_index + 1}: lista carregada com {len(supported_files)} itens."
+        )
 
     def previous_playlist_item(self, panel_index, _checked=False):
         self.move_playlist(panel_index, -1)
@@ -285,10 +337,21 @@ class MainWindow(QMainWindow):
             self.playlist_positions[panel_index] + step
         ) % len(playlist)
         self.playlist_positions[panel_index] = next_position
-        self.load_panel_media(panel_index, playlist[next_position])
+        self.load_panel_media(
+            panel_index,
+            playlist[next_position],
+            announce=False,
+            track_recent=False,
+        )
         self.save_session()
 
-    def load_panel_media(self, panel_index, filename):
+    def load_panel_media(
+        self,
+        panel_index,
+        filename,
+        announce=True,
+        track_recent=True,
+    ):
         if not self.media_widgets[panel_index].load_media(filename):
             QMessageBox.warning(
                 self,
@@ -297,6 +360,12 @@ class MainWindow(QMainWindow):
             )
             return False
 
+        if track_recent:
+            self.record_recent_media(panel_index, filename)
+        self.refresh_panel_status(panel_index)
+        self.update_global_status()
+        if announce:
+            self.show_load_confirmation(panel_index, filename)
         return True
 
     def confirm_preview(self, filename):
@@ -313,6 +382,9 @@ class MainWindow(QMainWindow):
         self.playlists[panel_index] = []
         self.playlist_positions[panel_index] = 0
         self.save_session()
+        self.refresh_panel_status(panel_index)
+        self.update_global_status()
+        self.show_status_message(f"Painel {panel_index + 1}: limpo.")
 
     def open_projection_settings(self):
         dialog = ProjectionSettingsDialog(self.panel_sizes(), self)
@@ -333,6 +405,7 @@ class MainWindow(QMainWindow):
             media_widget.set_panel_size(width, height)
 
         self.adjustSize()
+        self.update_global_status()
 
     def toggle_operation_mode(self):
         self.is_operation_mode = not self.is_operation_mode
@@ -340,11 +413,12 @@ class MainWindow(QMainWindow):
             controls.setVisible(not self.is_operation_mode)
 
         self.mode_button.setText(
-            "Modo configuracao"
+            "Mostrar controles"
             if self.is_operation_mode
-            else "Modo operacao"
+            else "Ocultar controles"
         )
         self.save_session()
+        self.update_global_status()
 
     def toggle_blackout(self):
         self.blackout_enabled = not self.blackout_enabled
@@ -352,15 +426,19 @@ class MainWindow(QMainWindow):
             media_widget.set_blackout(self.blackout_enabled)
 
         self.blackout_button.setText(
-            "Sair blackout" if self.blackout_enabled else "Blackout"
+            "Restaurar tela" if self.blackout_enabled else "Tela preta"
         )
         self.save_session()
+        self.update_global_status()
+        for index in range(PANEL_COUNT):
+            self.refresh_panel_status(index)
 
     def set_loop_enabled(self, enabled):
         for media_widget in self.media_widgets:
             media_widget.set_loop_enabled(enabled)
 
         self.save_session()
+        self.update_global_status()
 
     def advance_image_playlists(self):
         if not self.loop_checkbox.isChecked() or self.blackout_enabled:
@@ -372,6 +450,7 @@ class MainWindow(QMainWindow):
                 continue
 
             self.move_playlist(panel_index, 1)
+            self.refresh_panel_status(panel_index)
 
     def export_preset(self):
         filename, _selected_filter = QFileDialog.getSaveFileName(
@@ -423,6 +502,120 @@ class MainWindow(QMainWindow):
             ),
         )
 
+    def show_media_error(self, message):
+        QMessageBox.warning(self, "Erro de reproducao", message)
+        self.show_status_message(message, 5000)
+        self.update_global_status()
+
+    def refresh_panel_status(self, panel_index, *_args):
+        if panel_index >= len(self.media_widgets):
+            return
+
+        media_widget = self.media_widgets[panel_index]
+        status_text = self.panel_status_text(media_widget)
+        if panel_index < len(self.panel_status_labels):
+            self.panel_status_labels[panel_index].setText(status_text)
+        media_widget.update_overlay_text()
+        self.update_global_status()
+
+    def update_global_status(self):
+        selected_screen = self.selected_screen()
+        if selected_screen:
+            geometry = selected_screen.availableGeometry()
+            monitor_text = (
+                f"Saida ativa: {self.monitor_combo.currentText()} "
+                f"({geometry.width()}x{geometry.height()})"
+            )
+        else:
+            monitor_text = "Saida ativa: nenhuma"
+
+        state_bits = [
+            "Tela cheia" if self.isFullScreen() else "Janela",
+            "Blackout" if self.blackout_enabled else "Conteudo visivel",
+            "Controles ocultos" if self.is_operation_mode else "Controles visiveis",
+            "Loop" if self.loop_checkbox.isChecked() else "Sem loop",
+        ]
+        self.active_output_label.setText(monitor_text)
+        self.global_state_label.setText(" | ".join(state_bits))
+
+    def panel_status_text(self, media_widget):
+        if media_widget.blackout_enabled:
+            state_text = "Tela preta"
+        elif media_widget.current_type == "video":
+            player_state = media_widget.media_player.state()
+            if player_state == media_widget.media_player.PlayingState:
+                state_text = "Video tocando"
+            elif player_state == media_widget.media_player.PausedState:
+                state_text = "Video pausado"
+            else:
+                state_text = "Video carregando"
+        elif media_widget.current_type == "image":
+            state_text = "Imagem"
+        else:
+            state_text = "Sem midia"
+
+        if media_widget.current_path:
+            media_name = os.path.basename(media_widget.current_path)
+        else:
+            media_name = "Sem midia"
+
+        return f"{media_name} | {state_text}"
+
+    def show_status_message(self, message, timeout=3000):
+        self.statusBar().showMessage(message, timeout)
+
+    def show_load_confirmation(self, panel_index, filename):
+        self.show_status_message(
+            f"Painel {panel_index + 1}: {os.path.basename(filename)} enviado."
+        )
+
+    def show_recent_media_menu(self, panel_index, button):
+        recent_items = self.recent_media[panel_index]
+        menu = QMenu(self)
+
+        if not recent_items:
+            action = menu.addAction("Sem itens recentes")
+            action.setEnabled(False)
+        else:
+            for filepath in recent_items:
+                action = menu.addAction(os.path.basename(filepath))
+                action.setToolTip(filepath)
+                action.triggered.connect(
+                    partial(self.load_recent_media, panel_index, filepath)
+                )
+
+        menu.exec_(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def load_recent_media(self, panel_index, filepath, _checked=False):
+        if not os.path.exists(filepath):
+            self.show_status_message(
+                f"Painel {panel_index + 1}: arquivo recente nao encontrado."
+            )
+            return
+
+        if self.load_panel_media(panel_index, filepath):
+            self.playlists[panel_index] = [filepath]
+            self.playlist_positions[panel_index] = 0
+            self.save_session()
+
+    def load_most_recent_media(self, panel_index, _checked=False):
+        recent_items = self.recent_media[panel_index]
+        if not recent_items:
+            self.show_status_message(
+                f"Painel {panel_index + 1}: nao ha midias recentes."
+            )
+            return
+
+        self.load_recent_media(panel_index, recent_items[0])
+
+    def record_recent_media(self, panel_index, filename):
+        recent_items = self.recent_media[panel_index]
+        if filename in recent_items:
+            recent_items.remove(filename)
+
+        recent_items.insert(0, filename)
+        del recent_items[RECENT_MEDIA_LIMIT:]
+
     def save_session(self):
         self.settings.setValue("screen_index", self.monitor_combo.currentData() or 0)
         self.settings.setValue("fullscreen", self.isFullScreen())
@@ -445,6 +638,10 @@ class MainWindow(QMainWindow):
                 f"panel_{index}_playlist_position",
                 self.playlist_positions[index],
             )
+            self.settings.setValue(
+                f"panel_{index}_recent_media",
+                json.dumps(self.recent_media[index], ensure_ascii=False),
+            )
 
     def session_data(self):
         return {
@@ -460,6 +657,7 @@ class MainWindow(QMainWindow):
                     "height": media_widget.panel_height,
                     "playlist": self.playlists[index],
                     "playlist_position": self.playlist_positions[index],
+                    "recent_media": self.recent_media[index],
                 }
                 for index, media_widget in enumerate(self.media_widgets)
             ],
@@ -474,6 +672,7 @@ class MainWindow(QMainWindow):
         self.move_to_selected_monitor()
         self.restore_panel_sizes()
         self.restore_playlists()
+        self.restore_recent_media()
 
         self.loop_checkbox.setChecked(self.settings.value("loop", True, type=bool))
         self.set_loop_enabled(self.loop_checkbox.isChecked())
@@ -481,7 +680,12 @@ class MainWindow(QMainWindow):
         for index, media_widget in enumerate(self.media_widgets):
             path = self.settings.value(f"panel_{index}_path", "", type=str)
             if path and os.path.exists(path):
-                media_widget.load_media(path)
+                self.load_panel_media(
+                    index,
+                    path,
+                    announce=False,
+                    track_recent=False,
+                )
 
         if self.settings.value("fullscreen", False, type=bool):
             self.toggle_fullscreen()
@@ -491,6 +695,9 @@ class MainWindow(QMainWindow):
 
         if self.settings.value("blackout", False, type=bool):
             self.toggle_blackout()
+
+        self.update_global_status()
+        self.maybe_show_first_run_help()
 
     def restore_panel_sizes(self):
         panel_sizes = []
@@ -531,6 +738,23 @@ class MainWindow(QMainWindow):
                 type=int,
             )
 
+    def restore_recent_media(self):
+        for index in range(PANEL_COUNT):
+            recent_json = self.settings.value(
+                f"panel_{index}_recent_media",
+                "[]",
+                type=str,
+            )
+            try:
+                recent_items = json.loads(recent_json)
+            except json.JSONDecodeError:
+                recent_items = []
+
+            self.recent_media[index] = [
+                filepath for filepath in recent_items
+                if isinstance(filepath, str) and os.path.exists(filepath)
+            ][:RECENT_MEDIA_LIMIT]
+
     def apply_session_data(self, data):
         if self.isFullScreen():
             self.exit_fullscreen()
@@ -560,12 +784,22 @@ class MainWindow(QMainWindow):
             self.playlist_positions[index] = int(
                 panel_data.get("playlist_position", 0)
             )
+            self.recent_media[index] = [
+                filepath for filepath in panel_data.get("recent_media", [])
+                if isinstance(filepath, str) and os.path.exists(filepath)
+            ][:RECENT_MEDIA_LIMIT]
 
             path = panel_data.get("path", "")
             if path and os.path.exists(path):
-                self.load_panel_media(index, path)
+                self.load_panel_media(
+                    index,
+                    path,
+                    announce=False,
+                    track_recent=False,
+                )
             else:
                 self.media_widgets[index].clear_media()
+            self.refresh_panel_status(index)
 
         self.apply_panel_sizes(panel_sizes)
         self.loop_checkbox.setChecked(bool(data.get("loop", True)))
@@ -577,6 +811,19 @@ class MainWindow(QMainWindow):
             self.toggle_operation_mode()
         if data.get("blackout", False):
             self.toggle_blackout()
+        self.update_global_status()
+
+    def maybe_show_first_run_help(self):
+        first_run_shown = self.settings.value(
+            "first_run_help_shown",
+            False,
+            type=bool,
+        )
+        if first_run_shown:
+            return
+
+        QMessageBox.information(self, "Ajuda rapida", FIRST_RUN_HELP_TEXT)
+        self.settings.setValue("first_run_help_shown", True)
 
     def closeEvent(self, event):
         self.save_session()
