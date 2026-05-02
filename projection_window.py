@@ -1,7 +1,6 @@
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QHBoxLayout, QWidget
 
-from constants import PANEL_COUNT
 from media_widget import MediaWidget
 
 
@@ -17,12 +16,7 @@ class ProjectionWindow(QWidget):
         )
 
         self.output_screen = None
-        self.media_widgets = [
-            MediaWidget(index + 1, self, show_overlay=False)
-            for index in range(PANEL_COUNT)
-        ]
-        for media_widget in self.media_widgets:
-            media_widget.set_muted(True)
+        self.media_widgets = []
 
         self.setWindowTitle("ScreenChurchProject - Projecao")
         self.setStyleSheet("background-color: #000;")
@@ -31,23 +25,55 @@ class ProjectionWindow(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
         self.layout.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        for media_widget in self.media_widgets:
-            self.layout.addWidget(media_widget, 0, Qt.AlignLeft | Qt.AlignTop)
 
         self.setFocusPolicy(Qt.StrongFocus)
+        self.set_panel_count(1)
+
+    def set_panel_count(self, panel_count):
+        current_count = len(self.media_widgets)
+        if panel_count == current_count:
+            return
+
+        if panel_count > current_count:
+            for index in range(current_count, panel_count):
+                media_widget = MediaWidget(index + 1, self, show_overlay=False)
+                media_widget.set_muted(True)
+                self.media_widgets.append(media_widget)
+                self.layout.addWidget(
+                    media_widget,
+                    0,
+                    Qt.AlignLeft | Qt.AlignTop,
+                )
+        else:
+            for media_widget in self.media_widgets[panel_count:]:
+                self.layout.removeWidget(media_widget)
+                media_widget.setParent(None)
+                media_widget.deleteLater()
+            self.media_widgets = self.media_widgets[:panel_count]
+
+        self.renumber_panels()
         self.update_projection_size()
+
+    def renumber_panels(self):
+        for index, media_widget in enumerate(self.media_widgets):
+            media_widget.panel_number = index + 1
+            media_widget.update_overlay_text()
 
     def set_output_screen(self, screen):
         self.output_screen = screen
         self.update_output_geometry()
 
     def set_panel_sizes(self, panel_sizes):
+        self.set_panel_count(len(panel_sizes))
         for media_widget, (width, height) in zip(self.media_widgets, panel_sizes):
             media_widget.set_panel_size(width, height)
 
         self.update_projection_size()
 
     def update_projection_size(self):
+        if not self.media_widgets:
+            return
+
         total_width = sum(
             media_widget.panel_width for media_widget in self.media_widgets
         )
@@ -77,14 +103,14 @@ class ProjectionWindow(QWidget):
                 media_widget.current_type == "video"
                 and not media_widget.blackout_enabled
             ):
-                media_widget.media_player.play()
+                media_widget.play()
         self.show()
         self.raise_()
 
     def hide_projection(self):
         for media_widget in self.media_widgets:
             if media_widget.current_type == "video":
-                media_widget.media_player.pause()
+                media_widget.pause()
             media_widget.set_muted(True)
         self.hide()
 
