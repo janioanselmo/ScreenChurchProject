@@ -160,6 +160,7 @@ class MainWindow(
         layout_menu = menu_bar.addMenu("Layout")
         self.add_menu_action(layout_menu, "Ajustes de partes...", self.open_projection_settings)
         self.add_menu_action(layout_menu, "Salvar layout atual", self.save_current_layout_preset)
+        self.add_menu_action(layout_menu, "Editar layout selecionado", self.edit_selected_layout_preset)
         self.add_menu_action(layout_menu, "Aplicar layout selecionado", self.apply_selected_layout_preset)
         self.add_menu_action(layout_menu, "Distribuir igualmente", self.distribute_panels_evenly)
 
@@ -211,8 +212,9 @@ class MainWindow(
         self.remove_panel_button = QPushButton("➖")
         self.apply_layout_button = QPushButton("✅")
         self.save_layout_button = QPushButton("💾")
+        self.edit_layout_button = QPushButton("✏️")
         self.blackout_button = QPushButton("⚫ Blackout")
-        self.clear_live_button = QPushButton("🧹 Limpar")
+        self.clear_live_button = QPushButton("🗑 Limpar")
         self.mode_button = QPushButton("👁")
         self.settings_button = QPushButton("⚙ Layout")
         self.fullscreen_button = QPushButton("▶ Projetar")
@@ -224,6 +226,7 @@ class MainWindow(
             (self.remove_panel_button, "Remover última parte"),
             (self.apply_layout_button, "Aplicar layout selecionado"),
             (self.save_layout_button, "Salvar layout atual"),
+            (self.edit_layout_button, "Editar layout selecionado"),
             (self.mode_button, "Ocultar/mostrar biblioteca"),
             (self.settings_button, "Ajustar dimensões das partes"),
             (self.fullscreen_button, "Projetar: abrir/fechar janela do telão"),
@@ -240,6 +243,7 @@ class MainWindow(
         self.remove_panel_button.clicked.connect(self.remove_last_panel)
         self.apply_layout_button.clicked.connect(self.apply_selected_layout_preset)
         self.save_layout_button.clicked.connect(self.save_current_layout_preset)
+        self.edit_layout_button.clicked.connect(self.edit_selected_layout_preset)
         self.mode_button.clicked.connect(self.toggle_operation_mode)
         self.settings_button.clicked.connect(self.open_projection_settings)
         self.fullscreen_button.clicked.connect(self.toggle_fullscreen)
@@ -315,6 +319,7 @@ class MainWindow(
         toolbar.addWidget(self.settings_button)
         toolbar.addWidget(self.apply_layout_button)
         toolbar.addWidget(self.save_layout_button)
+        toolbar.addWidget(self.edit_layout_button)
         toolbar.addWidget(self.add_panel_button)
         toolbar.addWidget(self.remove_panel_button)
         toolbar.addWidget(self.loop_checkbox)
@@ -966,12 +971,22 @@ class MainWindow(
         if not self.validate_panel_sizes(show_message=True):
             return
         self.move_to_selected_monitor()
+        self.projection_window.set_panel_count(len(self.media_widgets))
+        self.projection_window.set_panel_sizes(self.panel_sizes())
         self.projection_window.show_projection()
         QApplication.processEvents()
-        self.project_all_previews_to_output(announce=False)
         self.fullscreen_button.setText("⏹")
         self.save_session()
         self.update_global_status()
+
+        # VLC needs the target native windows to be visible and fully created
+        # before the preview player is reattached to the projection surface.
+        # Binding immediately is what caused the first projection to show a
+        # black frame while the audio kept playing.  We therefore delay the
+        # first bind slightly and do a second light bind as a safety net,
+        # without issuing stop/play/mute commands.
+        QTimer.singleShot(160, self.bind_projection_surfaces)
+        QTimer.singleShot(420, self.bind_projection_surfaces)
 
     def exit_fullscreen(self):
         if not self.is_projection_active():
@@ -997,12 +1012,10 @@ class MainWindow(
     def project_all_previews_to_output(self, announce=True):
         """Mirror all preview panels to the projection output.
 
-        v43 rule: there is no second video player for projected videos. The
-        preview MediaWidget remains the single player and the single audio
-        source. When projection is active, its video output is redirected to
-        the projection surface and the VLC decoder is refreshed at the same
-        timestamp if Windows renders a black surface. Images/text are copied
-        normally.
+        The operator preview remains the only real video/audio player.  When
+        projection is active, the VLC/Qt output surface is moved to the
+        projection widget only after the projection window is visible.  This
+        method must not call stop/play/mute for the preview video.
         """
         if not self.validate_panel_sizes(show_message=True):
             return False
@@ -1029,7 +1042,7 @@ class MainWindow(
                     if source.current_backend == "vlc"
                     else target.video_widget
                 )
-                source.attach_video_output_to_widget(output_widget, refresh=True)
+                source.attach_video_output_to_widget(output_widget, refresh=False)
                 descriptor["playback"] = snapshot
             else:
                 # Non-video content can be copied safely because it has no audio.
@@ -1048,6 +1061,24 @@ class MainWindow(
                 3000,
             )
         return True
+
+    def bind_projection_surfaces(self):
+        """Bind active preview video surfaces to the visible projection window.
+
+        This is intentionally a lightweight operation: it does not play, stop,
+        pause, mute, reload media or change the playback timestamp.  Its only
+        purpose is to attach the already-running preview player to the now
+        visible projection surface.
+        """
+        if not self.is_projection_active():
+            return
+        if not self.validate_panel_sizes(show_message=False):
+            return
+
+        self.projection_window.set_panel_count(len(self.media_widgets))
+        self.projection_window.set_panel_sizes(self.panel_sizes())
+        QApplication.processEvents()
+        self.project_all_previews_to_output(announce=False)
 
     def sync_preview_panel_to_projection(self, panel_index):
         """Update one projected panel when the projection is already open."""
@@ -1177,7 +1208,7 @@ class MainWindow(
         playlist_btn = QPushButton("🗂")
         prev_btn = QPushButton("⏮")
         next_btn = QPushButton("⏭")
-        clear_btn = QPushButton("🧹")
+        clear_btn = QPushButton("🗑")
         blackout_btn = QPushButton("⚫")
         for button, tooltip in (
             (load_btn, "Carregar mídia nesta parte"),
@@ -1697,6 +1728,87 @@ class MainWindow(
         self.save_layout_presets_to_disk()
         self.refresh_layout_preset_combo()
         self.show_status_message(f"Layout salvo: {preset['name']}", 4000)
+
+    def edit_selected_layout_preset(self):
+        """Edit or remove the currently selected layout preset."""
+        preset = self.selected_layout_preset()
+        if not preset:
+            QMessageBox.information(self, "Editar layout", "Selecione um layout para editar.")
+            return
+
+        current_name = preset.get("name", "")
+        choice = QMessageBox(self)
+        choice.setWindowTitle("Editar layout")
+        choice.setText(f"O que deseja fazer com o layout '{current_name}'?")
+        edit_button = choice.addButton("✏️ Editar", QMessageBox.AcceptRole)
+        remove_button = choice.addButton("🗑 Remover", QMessageBox.DestructiveRole)
+        choice.addButton("Cancelar", QMessageBox.RejectRole)
+        choice.exec_()
+
+        clicked = choice.clickedButton()
+        if clicked is remove_button:
+            confirm = QMessageBox.question(
+                self,
+                "Remover layout",
+                f"Remover o layout '{current_name}'?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if confirm != QMessageBox.Yes:
+                return
+            self.layout_presets = [
+                item for item in self.layout_presets
+                if item.get("name") != current_name
+            ]
+            self.save_layout_presets_to_disk()
+            self.refresh_layout_preset_combo()
+            self.show_status_message(f"Layout removido: {current_name}", 4000)
+            return
+
+        if clicked is not edit_button:
+            return
+
+        new_name, accepted = QInputDialog.getText(
+            self,
+            "Editar layout",
+            "Nome do layout:",
+            text=current_name,
+        )
+        if not accepted or not new_name.strip():
+            return
+
+        panel_sizes = [(p["width"], p["height"]) for p in preset.get("panels", [])]
+        output = preset.get("output", {}) or {}
+        output_size = (
+            int(output.get("width", 0) or self.selected_output_size()[0]),
+            int(output.get("height", 0) or self.selected_output_size()[1]),
+        )
+        dialog = ProjectionSettingsDialog(panel_sizes, output_size=output_size, parent=self)
+        if dialog.exec_() != ProjectionSettingsDialog.Accepted:
+            return
+
+        edited = self.normalize_layout_preset({
+            "name": new_name.strip(),
+            "output": {"width": output_size[0], "height": output_size[1]},
+            "panels": [
+                {"width": width, "height": height}
+                for width, height in dialog.panel_sizes()
+            ],
+        })
+        if not edited:
+            return
+
+        self.layout_presets = [
+            item for item in self.layout_presets
+            if item["name"] not in {current_name, edited["name"]}
+        ]
+        self.layout_presets.append(edited)
+        self.save_layout_presets_to_disk()
+        self.refresh_layout_preset_combo()
+        index = self.layout_preset_combo.findData(edited["name"])
+        if index >= 0:
+            self.layout_preset_combo.setCurrentIndex(index)
+        self.show_status_message(f"Layout editado: {edited['name']}", 4000)
 
     # ------------------------------------------------------------------
     # Media library

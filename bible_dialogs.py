@@ -617,7 +617,7 @@ class BibleNavigatorDialog(QDialog):
         preview_button = QPushButton("👁 Prévia")
         quick_button = QPushButton("⌨ Localizar")
         favorite_button = QPushButton("⭐")
-        clear_button = QPushButton("🧹")
+        clear_button = QPushButton("🗑")
         close_button = QPushButton("Fechar")
         preview_button.setToolTip("Carregar versículo na prévia")
         quick_button.setToolTip("Abrir busca rápida por teclado")

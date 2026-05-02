@@ -368,7 +368,7 @@ A operação usa o botão **▶ Projetar** como comando principal para reduzir c
 
 Não existe mais checkbox individual de projeção por parte. Ao projetar, todas as partes do layout são exibidas; para ocultar uma parte específica, use o **Blackout** daquela parte.
 
-Para vídeos, o botão **▶ Projetar** preserva o ponto atual da prévia. Se você assistir 10 ou 15 segundos na visualização e depois projetar, a saída sincroniza com a mesma posição/estado. A **prévia do operador permanece como única fonte de áudio**; a projeção apenas espelha o vídeo no telão sem criar uma segunda saída sonora. Em alguns computadores Windows, o VLC pode abrir a nova superfície de vídeo em preto; por isso o ScreenChurch faz um refresh interno do decodificador no mesmo tempo do vídeo.
+Para vídeos, o botão **▶ Projetar** preserva o ponto atual da prévia. Se você assistir 10 ou 15 segundos na visualização e depois projetar, a saída sincroniza com a mesma posição/estado. A **prévia do operador permanece como única fonte de áudio**; a projeção apenas espelha o vídeo no telão sem criar uma segunda saída sonora. Para evitar tela preta na primeira projeção, o ScreenChurch aguarda a superfície do telão ficar visível antes de mover a saída de vídeo do preview, sem executar Stop/Play e sem mutar o áudio.
 
 ### 12. Navegação ao vivo por teclado
 
@@ -928,3 +928,32 @@ Note: during video projection, the real player belongs to the Preview. Play/Paus
 - The progress bar now respects mouse dragging: while the operator holds the slider, the UI does not force it back to the old timestamp.
 - Releasing the mouse commits the new timestamp and reflects it in the active projection.
 - `Project` still does not create a second audio source or play another player over Preview.
+
+### v45 — Edição de layouts, ícones e ativação da superfície VLC
+
+- Adicionado botão **✏️** na barra superior para editar o layout selecionado.
+- A edição permite renomear o preset e ajustar as dimensões das partes usando a mesma validação dos ajustes de layout.
+- Ícones de limpeza foram padronizados para **🗑**, deixando a ação mais visível e consistente.
+- A troca da superfície VLC ao clicar em **Projetar** recebeu uma ativação mais robusta para evitar tela preta na primeira projeção de um vídeo já em reprodução.
+- Mantida a regra de player único: o Preview continua sendo a fonte real do vídeo/áudio, sem segundo áudio e sem reprodução duplicada.
+
+### v45 — Layout editing, clearer icons and VLC surface activation
+
+- Added a **✏️** button to the top toolbar to edit the selected layout preset.
+- Editing allows renaming the preset and changing part dimensions with the same layout validation rules.
+- Clear/delete icons were standardized to **🗑** for better visibility and consistency.
+- VLC surface switching on **Project** now performs a stronger activation step to reduce black-screen cases on the first projection of an already playing video.
+- The single-player rule remains: Preview is still the real video/audio source, with no duplicated audio and no second playback instance.
+
+
+### v46 — Gerenciamento de layouts e projeção sem Stop/Play
+
+- O botão de edição de layouts agora permite **Editar** ou **Remover** o preset selecionado.
+- A primeira ativação da projeção recebeu ligação atrasada da superfície VLC para evitar tela preta sem usar Stop/Play interno.
+- A regra permanece: **Preview é o player real de áudio/vídeo** e **Projetar apenas move a saída visual para o telão**.
+
+### v46 — Layout management and projection without Stop/Play
+
+- The layout edit button now allows editing or removing the selected preset.
+- The first projection activation now delays VLC surface binding to avoid black output without using internal Stop/Play.
+- The rule remains: **Preview is the real audio/video player** and **Project only moves the visual output to the screen**.

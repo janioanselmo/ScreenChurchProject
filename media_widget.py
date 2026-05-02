@@ -427,11 +427,11 @@ class MediaWidget(QWidget):
     def attach_video_output_to_widget(self, output_widget, refresh=True):
         """Attach the single video player to another video surface.
 
-        This method must not restart the decoder, stop/play, mute, or seek
-        aggressively. The operator may be dragging the progress bar while the
-        projection is open, so the output surface change must be as light as
-        possible. The optional refresh now only repaints the Qt widget and
-        reapplies the current timestamp to VLC on the next event-loop cycle.
+        VLC on Windows may keep rendering a black frame when its native window
+        handle is changed while playback is already running. To avoid the user
+        needing to press Stop/Play manually, the first projection bind performs
+        a tiny pause/play handshake at the same timestamp. This keeps one single
+        player and one single audio source; it does not create a second player.
         """
         if self.current_type != "video":
             return
@@ -439,26 +439,28 @@ class MediaWidget(QWidget):
             return
 
         output_widget.setUpdatesEnabled(True)
+        output_widget.setAttribute(Qt.WA_NativeWindow, True)
+        output_widget.setAttribute(Qt.WA_DontCreateNativeAncestors, False)
         output_widget.show()
         output_widget.raise_()
         output_widget.repaint()
+        output_widget.winId()
 
         if self.current_backend == "vlc" and self.vlc_player:
             snapshot = self.video_playback_snapshot()
             self._attach_vlc_to_widget(output_widget)
             if refresh:
-                self._soft_refresh_vlc_surface(snapshot)
+                self._activate_vlc_surface(snapshot)
             return
 
         self.media_player.setVideoOutput(output_widget)
 
-    def _soft_refresh_vlc_surface(self, snapshot):
-        """Soft-refresh VLC rendering after moving the native video surface.
+    def _activate_vlc_surface(self, snapshot):
+        """Force VLC to render on the newly attached native surface.
 
-        Older versions used a decoder stop/play cycle here. That removed the
-        black surface in some cases, but caused a visible "repique" and fought
-        the progress bar while the operator was seeking. This lighter refresh
-        keeps playback alive and only reapplies the current timestamp.
+        This is intentionally lighter than stop/play. It pauses only when the
+        video was already playing, re-applies the timestamp, and resumes. Paused
+        videos remain paused at the same position.
         """
         if self.current_backend != "vlc" or not self.vlc_player:
             return
@@ -468,18 +470,29 @@ class MediaWidget(QWidget):
             position = max(0, int(snapshot.get("position_ms", 0) or 0))
         except (TypeError, ValueError):
             position = 0
+        was_playing = bool(snapshot.get("is_playing", False))
 
-        def refresh():
+        if was_playing:
+            try:
+                self.vlc_player.pause()
+            except Exception:
+                pass
+
+        def activate():
             if self.current_type != "video" or not self.vlc_player:
                 return
             try:
                 if position > 0:
                     self.vlc_player.set_time(position)
+                if was_playing:
+                    self.vlc_player.play()
+                else:
+                    self.vlc_player.pause()
             except Exception:
                 pass
             self.update_overlay_text()
 
-        QTimer.singleShot(30, refresh)
+        QTimer.singleShot(35, activate)
 
     def force_vlc_decoder_refresh(self, position_ms=None, should_play=True):
         """Restart only the VLC decoder on the current surface.
