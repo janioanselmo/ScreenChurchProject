@@ -280,7 +280,7 @@ Fluxo rápido:
 1. Escolha o monitor/projetor.
 2. Escolha ou ajuste o layout.
 3. Em Mídias, Letras, Bíblia ou Culto, escolha o destino no próprio módulo.
-4. Use 👁 para prévia ou 📡 para enviar direto ao vivo.
+4. Use 👁 para preparar na prévia. Para ir ao telão, use somente a barra superior: **⬆ Parte** ou **⬆⬆ Tudo**.
 ```
 
 ### 8. Vídeos e codecs
@@ -355,6 +355,19 @@ Setas      alternam a sugestão de livro
 Esc        cancela a busca rápida
 ```
 
+
+
+### Fluxo padronizado de projeção
+
+A operação agora usa um fluxo único para evitar envios duplicados:
+
+- **▶ Projetar**: apenas abre ou fecha a janela do telão/projetor; não envia conteúdo.
+- **Abas Mídias, Letras, Bíblia e Culto**: apenas preparam conteúdo na prévia da parte escolhida.
+- **⬆ Parte**: envia somente a parte selecionada para o ao vivo.
+- **⬆⬆ Tudo**: envia todas as partes preparadas para o ao vivo.
+- **Ao vivo**: é apenas status do que está na saída real.
+
+Se o conteúdo da prévia já estiver ao vivo, o ScreenChurch não reenviará a mesma parte, evitando resets ou duplicação de vídeo/texto.
 
 ### 12. Navegação ao vivo por teclado
 
@@ -632,7 +645,7 @@ Fast workflow:
 1. Select the projector/monitor.
 2. Select or adjust the layout.
 3. In Media, Lyrics, Bible or Service, choose the target inside the module.
-4. Use 👁 for preview or 📡 to send directly live.
+4. Use 👁 to prepare the preview. To send to the projector, use only the top toolbar: **⬆ Part** or **⬆⬆ All**.
 ```
 
 ### 7. Video and codecs
@@ -707,6 +720,19 @@ Arrows     switch selected book suggestion
 Esc        cancel fast search
 ```
 
+
+
+### Standardized projection flow
+
+The operator flow now uses a single live-send path to avoid duplicated sends:
+
+- **▶ Project**: only opens or closes the projector/output window; it does not send content.
+- **Media, Lyrics, Bible and Service tabs**: only prepare content in the selected part preview.
+- **⬆ Part**: sends only the selected part live.
+- **⬆⬆ All**: sends all prepared parts live.
+- **Live**: only shows the current real output status.
+
+If the preview content is already live, ScreenChurch skips the duplicated send to avoid resetting videos or duplicating text.
 
 ### 12. Live keyboard navigation
 

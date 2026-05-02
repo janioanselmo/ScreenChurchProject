@@ -421,11 +421,11 @@ class SongLibraryMixin:
             self.load_descriptor_to_preview(descriptor, panel_index)
 
     def send_song_section_to_live(self):
-        descriptor = self.selected_song_section_descriptor()
-        if descriptor["body"]:
-            panel_index = self.song_target_panel_index()
-            self.load_descriptor_to_preview(descriptor, panel_index)
-            self.send_panel_to_live(panel_index)
+        """Compatibility method: song actions prepare preview only.
+
+        Use the main toolbar buttons ⬆ or ⬆⬆ to send content live.
+        """
+        self.send_song_section_to_preview()
 
     def add_song_section_to_service(self):
         descriptor = self.selected_song_section_descriptor()

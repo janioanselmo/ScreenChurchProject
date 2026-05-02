@@ -183,7 +183,7 @@ class MainWindow(
 
         projection_menu = menu_bar.addMenu("Projeção")
         self.add_menu_action(projection_menu, "Iniciar/parar projeção", self.toggle_fullscreen)
-        self.add_menu_action(projection_menu, "Enviar destino ao vivo", self.send_selected_to_live)
+        self.add_menu_action(projection_menu, "Enviar parte ao vivo", self.send_selected_to_live)
         self.add_menu_action(projection_menu, "Enviar tudo ao vivo", self.send_all_to_live)
         self.add_menu_action(projection_menu, "Blackout geral", self.toggle_blackout)
         self.add_menu_action(projection_menu, "Tela limpa", self.clear_all_live)
@@ -215,13 +215,13 @@ class MainWindow(
         self.remove_panel_button = QPushButton("➖")
         self.apply_layout_button = QPushButton("✅")
         self.save_layout_button = QPushButton("💾")
-        self.send_selected_live_button = QPushButton("⬆")
-        self.send_all_live_button = QPushButton("⬆⬆")
-        self.blackout_button = QPushButton("⚫")
-        self.clear_live_button = QPushButton("🧹")
+        self.send_selected_live_button = QPushButton("⬆ Parte")
+        self.send_all_live_button = QPushButton("⬆⬆ Tudo")
+        self.blackout_button = QPushButton("⚫ Blackout")
+        self.clear_live_button = QPushButton("🧹 Limpar")
         self.mode_button = QPushButton("👁")
-        self.settings_button = QPushButton("⚙")
-        self.fullscreen_button = QPushButton("📽")
+        self.settings_button = QPushButton("⚙ Layout")
+        self.fullscreen_button = QPushButton("▶ Projetar")
         self.open_bible_button = QPushButton("📖")
         self.bible_case_tab_button = QPushButton("Aa Normal")
         self.bible_case_tab_button.setToolTip("Alternar caixa da projeção bíblica: normal, maiúsculo ou minúsculo")
@@ -230,13 +230,13 @@ class MainWindow(
             (self.remove_panel_button, "Remover última parte"),
             (self.apply_layout_button, "Aplicar layout selecionado"),
             (self.save_layout_button, "Salvar layout atual"),
-            (self.send_selected_live_button, "Enviar destino ao vivo"),
-            (self.send_all_live_button, "Enviar todas as partes ao vivo"),
+            (self.send_selected_live_button, "Enviar parte selecionada ao vivo"),
+            (self.send_all_live_button, "Enviar tudo ao vivo"),
             (self.blackout_button, "Blackout geral"),
             (self.clear_live_button, "Limpar saída ao vivo"),
             (self.mode_button, "Ocultar/mostrar biblioteca"),
             (self.settings_button, "Ajustar dimensões das partes"),
-            (self.fullscreen_button, "Iniciar/parar projeção"),
+            (self.fullscreen_button, "Projetar: abrir/fechar janela do telão"),
             (self.open_bible_button, "Abrir janela da Bíblia"),
         ):
             button.setToolTip(tooltip)
@@ -276,7 +276,7 @@ class MainWindow(
         self.song_search = QLineEdit()
         self.song_search.setPlaceholderText("Buscar música ou trecho...")
         self.song_search.textChanged.connect(self.refresh_song_list)
-        self.song_list.itemDoubleClicked.connect(self.send_song_section_to_live)
+        self.song_list.itemDoubleClicked.connect(self.load_song_to_form)
         self.song_current_label = QLabel("Nenhuma música selecionada")
         self.song_current_label.setStyleSheet("font-weight: 600; color: #f1f1f1; padding: 4px;")
         self.song_title_edit = QLineEdit()
@@ -303,7 +303,7 @@ class MainWindow(
         self.song_section_list.setWrapping(True)
         self.song_section_list.setGridSize(QSize(230, 135))
         self.song_section_list.setMinimumHeight(260)
-        self.song_section_list.itemDoubleClicked.connect(lambda _item: self.send_song_section_to_live())
+        self.song_section_list.itemDoubleClicked.connect(lambda _item: self.send_song_section_to_preview())
 
         self.bible_version_combo = QComboBox()
         self.bible_book_edit = QLineEdit()
@@ -326,19 +326,19 @@ class MainWindow(
         toolbar.addWidget(self.monitor_combo, 1)
         toolbar.addWidget(QLabel("Layout:"))
         toolbar.addWidget(self.layout_preset_combo, 1)
+        toolbar.addWidget(self.fullscreen_button)
+        toolbar.addWidget(self.settings_button)
         toolbar.addWidget(self.send_selected_live_button)
+        toolbar.addWidget(self.send_all_live_button)
+        toolbar.addWidget(self.blackout_button)
+        toolbar.addWidget(self.clear_live_button)
+        toolbar.addWidget(self.open_bible_button)
         toolbar.addWidget(self.apply_layout_button)
         toolbar.addWidget(self.save_layout_button)
         toolbar.addWidget(self.loop_checkbox)
         toolbar.addWidget(self.add_panel_button)
         toolbar.addWidget(self.remove_panel_button)
-        toolbar.addWidget(self.send_all_live_button)
-        toolbar.addWidget(self.blackout_button)
-        toolbar.addWidget(self.clear_live_button)
         toolbar.addWidget(self.mode_button)
-        toolbar.addWidget(self.settings_button)
-        toolbar.addWidget(self.open_bible_button)
-        toolbar.addWidget(self.fullscreen_button)
 
         status_layout = QHBoxLayout()
         self.active_output_label.setStyleSheet("font-weight: 600; color: #6ee7a8;")
@@ -395,14 +395,12 @@ class MainWindow(
         remove_media = QPushButton("➖")
         add_folder = QPushButton("📁")
         send_preview = QPushButton("👁")
-        send_live = QPushButton("📡")
         add_playlist = QPushButton("🧾")
         for button, tooltip in (
             (add_files, "Adicionar arquivos"),
             (remove_media, "Remover mídia selecionada da biblioteca"),
             (add_folder, "Adicionar pasta"),
             (send_preview, "Carregar mídia na prévia do destino"),
-            (send_live, "Enviar mídia ao vivo no destino"),
             (add_playlist, "Adicionar mídia à lista do destino"),
         ):
             button.setToolTip(tooltip)
@@ -411,9 +409,8 @@ class MainWindow(
         remove_media.clicked.connect(self.remove_selected_media_from_library)
         add_folder.clicked.connect(self.add_media_folder_to_library)
         send_preview.clicked.connect(self.load_selected_media_to_selected_panel)
-        send_live.clicked.connect(self.send_selected_media_to_live)
         add_playlist.clicked.connect(self.add_selected_media_to_playlist)
-        for button in (add_files, remove_media, add_folder, send_preview, send_live, add_playlist):
+        for button in (add_files, remove_media, add_folder, send_preview, add_playlist):
             btn_row.addWidget(button)
         layout.addLayout(btn_row)
         layout.addWidget(self.media_list, 1)
@@ -473,17 +470,15 @@ class MainWindow(
         slides_layout.addWidget(QLabel("Slides"))
         self.song_section_list.setViewMode(QListWidget.ListMode)
         self.song_section_list.setMinimumHeight(220)
-        self.song_section_list.itemDoubleClicked.connect(lambda _item: self.send_song_section_to_live())
+        self.song_section_list.itemDoubleClicked.connect(lambda _item: self.send_song_section_to_preview())
         slides_layout.addWidget(self.song_section_list, 1)
 
         action_row = QHBoxLayout()
         preview_btn = QPushButton("👁")
-        live_btn = QPushButton("📡")
         service_btn = QPushButton("🧾")
         edit_slide_btn = QPushButton("✏")
         for button, tooltip in (
             (preview_btn, "Carregar slide selecionado na prévia"),
-            (live_btn, "Enviar slide selecionado ao vivo"),
             (service_btn, "Adicionar slide à ordem do culto"),
             (edit_slide_btn, "Abrir editor da música"),
         ):
@@ -491,7 +486,6 @@ class MainWindow(
             button.setMinimumWidth(42)
             action_row.addWidget(button)
         preview_btn.clicked.connect(self.send_song_section_to_preview)
-        live_btn.clicked.connect(self.send_song_section_to_live)
         service_btn.clicked.connect(self.add_song_section_to_service)
         edit_slide_btn.clicked.connect(self.open_current_song_editor)
         slides_layout.addLayout(action_row)
@@ -1245,13 +1239,32 @@ class MainWindow(
         self.select_panel(panel_index)
         self.save_session()
 
-    def send_panel_to_live(self, panel_index, _checked=False):
+    def descriptor_signature(self, descriptor):
+        """Return a stable signature to avoid duplicate live sends."""
+        try:
+            return json.dumps(descriptor or {}, sort_keys=True, ensure_ascii=False)
+        except TypeError:
+            return repr(descriptor)
+
+    def send_panel_to_live(self, panel_index, _checked=False, announce=True):
+        """Send exactly one preview panel to the live output.
+
+        This is the only method that should copy preview content to the
+        projection window. Module tabs only prepare previews.
+        """
         if panel_index >= len(self.media_widgets):
-            return
+            return False
         if not self.validate_panel_sizes(show_message=True):
-            return
+            return False
+
         source = self.media_widgets[panel_index]
         descriptor = source.media_descriptor()
+        current = self.live_descriptors[panel_index] if panel_index < len(self.live_descriptors) else {}
+        if self.descriptor_signature(descriptor) == self.descriptor_signature(current):
+            if announce:
+                self.show_status_message(f"Parte {panel_index + 1} já está ao vivo.", 2500)
+            return False
+
         self.projection_window.set_panel_count(len(self.media_widgets))
         self.projection_window.set_panel_sizes(self.panel_sizes())
         target = self.projection_window.media_widgets[panel_index]
@@ -1260,22 +1273,31 @@ class MainWindow(
         target.set_muted(not self.is_projection_active())
         if self.is_projection_active() and target.current_type == "video":
             target.play()
+
         self.live_descriptors[panel_index] = descriptor
-        self.show_status_message(f"Parte {panel_index + 1} enviada ao vivo.", 3000)
+        if announce:
+            self.show_status_message(f"Parte {panel_index + 1} enviada ao vivo.", 3000)
         self.save_session()
         self.update_global_status()
+        return True
 
     def send_selected_to_live(self):
         self.send_panel_to_live(self.selected_panel_index)
 
     def send_all_to_live(self):
+        sent_count = 0
         for index in range(len(self.media_widgets)):
-            self.send_panel_to_live(index)
-        self.show_status_message("Todas as partes foram enviadas ao vivo.", 4000)
+            if self.send_panel_to_live(index, announce=False):
+                sent_count += 1
+        if sent_count:
+            self.show_status_message(f"{sent_count} parte(s) enviada(s) ao vivo.", 4000)
+        else:
+            self.show_status_message("Tudo já estava ao vivo.", 3000)
 
     def refresh_projection_media_from_preview(self, panel_index):
-        # Mantido por compatibilidade: agora o envio ao vivo é manual.
-        self.send_panel_to_live(panel_index)
+        """Compatibility hook: preview changes no longer auto-send live."""
+        self.refresh_panel_status(panel_index)
+        self.update_global_status()
 
     def clear_panel(self, panel_index, _checked=False):
         self.media_widgets[panel_index].clear_media()
@@ -1932,7 +1954,7 @@ class MainWindow(
             state = "blackout" if index < len(self.projection_window.media_widgets) and self.projection_window.media_widgets[index].blackout_enabled else "visível"
             lines.append(f"Parte {index + 1}: {label} [{state}]")
         lines.append("")
-        lines.append("A prévia só aparece no telão depois de usar ⬆ na barra superior.")
+        lines.append("As abas preparam a prévia. Use ⬆ ou ⬆⬆ na barra superior para enviar ao vivo.")
         return "\n".join(lines)
 
     @staticmethod
@@ -2029,7 +2051,7 @@ class MainWindow(
         del items[RECENT_MEDIA_LIMIT:]
 
     def show_shortcuts(self):
-        QMessageBox.information(self, "Atalhos", SHORTCUT_HELP_TEXT + "\nCtrl+Enter: enviar destino ao vivo")
+        QMessageBox.information(self, "Atalhos", SHORTCUT_HELP_TEXT + "\nCtrl+Enter: enviar parte selecionada ao vivo")
 
     def show_quick_help(self):
         QMessageBox.information(self, "Manual rápido", FIRST_RUN_HELP_TEXT)

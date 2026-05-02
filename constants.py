@@ -81,7 +81,7 @@ FIRST_RUN_HELP_TEXT = (
     "2. Escolha ou salve um layout de projeção.\n"
     "3. Use ➕/➖ para ajustar a quantidade de partes.\n"
     "4. Em Mídias, Letras, Bíblia ou Culto, escolha o destino ali mesmo.\n"
-    "5. Use 👁 para carregar na prévia ou 📡 para enviar direto ao vivo.\n"
+    "5. Use 👁 para carregar na prévia; envie ao vivo apenas pela barra superior com ⬆ ou ⬆⬆.\n"
     "6. Use 📖 para abrir a janela rápida da Bíblia.\n\n"
     "A soma das larguras das partes não pode ultrapassar a largura da "
     "saída selecionada, e a altura das partes não pode ultrapassar a "

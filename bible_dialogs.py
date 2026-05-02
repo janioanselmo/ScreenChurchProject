@@ -92,7 +92,7 @@ class BibleQuickSearchDialog(QDialog):
     1. type/select the book;
     2. press Enter to jump to chapter;
     3. press Enter to jump to verse;
-    4. press Enter to send the validated reference live.
+    4. press Enter to load the validated reference into preview.
     """
 
     STAGE_BOOK = "book"
@@ -313,9 +313,9 @@ class BibleQuickSearchDialog(QDialog):
                 return
             self.navigator.select_verse_number(verse_number)
             self.verse_text = str(verse_number)
-            self.message = "Referência enviada."
+            self.message = "Referência carregada na prévia."
             self.update_view()
-            self.navigator.send_selected_live()
+            self.navigator.load_selected_preview()
             self.close()
 
     def book_matches(self, query):
@@ -582,7 +582,7 @@ class BibleNavigatorDialog(QDialog):
         self.reference_label.setStyleSheet("color: #d7d7d7;")
         self.verse_list = QListWidget()
         self.verse_list.itemClicked.connect(self.handle_verse_item_clicked)
-        self.verse_list.itemDoubleClicked.connect(self.send_selected_live)
+        self.verse_list.itemDoubleClicked.connect(lambda _item: self.load_selected_preview())
         left.addWidget(title)
         left.addWidget(self.reference_label)
         left.addWidget(self.verse_list, 1)
@@ -615,23 +615,20 @@ class BibleNavigatorDialog(QDialog):
 
         bottom = QHBoxLayout()
         preview_button = QPushButton("👁 Prévia")
-        live_button = QPushButton("📡 Enviar")
         quick_button = QPushButton("⌨ Localizar")
         favorite_button = QPushButton("⭐")
         clear_button = QPushButton("🧹")
         close_button = QPushButton("Fechar")
         preview_button.setToolTip("Carregar versículo na prévia")
-        live_button.setToolTip("Enviar versículo ao vivo")
         quick_button.setToolTip("Abrir busca rápida por teclado")
         favorite_button.setToolTip("Favoritar referência")
         clear_button.setToolTip("Limpar busca")
         preview_button.clicked.connect(self.load_selected_preview)
-        live_button.clicked.connect(self.send_selected_live)
         quick_button.clicked.connect(lambda: self.open_quick_search(""))
         favorite_button.clicked.connect(self.add_favorite)
         clear_button.clicked.connect(self.clear_search)
         close_button.clicked.connect(self.close)
-        for button in (preview_button, live_button, quick_button, favorite_button, clear_button):
+        for button in (preview_button, quick_button, favorite_button, clear_button):
             bottom.addWidget(button)
         bottom.addStretch(1)
         bottom.addWidget(close_button)
@@ -1116,11 +1113,11 @@ class BibleNavigatorDialog(QDialog):
             self.main_window.load_descriptor_to_preview(descriptor, self.target_index())
 
     def send_selected_live(self):
-        descriptor = self.selected_descriptor()
-        if descriptor:
-            target = self.target_index()
-            self.main_window.load_descriptor_to_preview(descriptor, target)
-            self.main_window.send_panel_to_live(target)
+        """Compatibility method: Bible actions prepare preview only.
+
+        Use the main toolbar buttons ⬆ or ⬆⬆ to send content live.
+        """
+        self.load_selected_preview()
 
     def add_favorite(self):
         descriptor = self.selected_descriptor()
