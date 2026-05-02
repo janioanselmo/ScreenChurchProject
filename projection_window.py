@@ -98,7 +98,9 @@ class ProjectionWindow(QWidget):
     def show_projection(self):
         self.update_output_geometry()
         for media_widget in self.media_widgets:
-            media_widget.set_muted(False)
+            # Audio is always controlled by the operator preview.
+            # The projection window is visual-only to avoid duplicated audio.
+            media_widget.set_muted(True)
             if (
                 media_widget.current_type == "video"
                 and not media_widget.blackout_enabled

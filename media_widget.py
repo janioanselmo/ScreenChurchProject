@@ -406,7 +406,11 @@ class MediaWidget(QWidget):
         descriptor = descriptor or {}
         media_type = descriptor.get("type", "")
         if media_type in {"image", "video"}:
-            return self.load_media(descriptor.get("path", ""))
+            loaded = self.load_media(descriptor.get("path", ""))
+            if loaded and media_type == "video":
+                playback = descriptor.get("playback", {})
+                QTimer.singleShot(350, lambda: self.apply_video_playback_snapshot(playback))
+            return loaded
         if media_type == "text":
             return self.load_text(
                 descriptor.get("title", ""),
@@ -419,7 +423,13 @@ class MediaWidget(QWidget):
         return True
 
     def media_descriptor(self):
-        if self.current_type in {"image", "video"}:
+        if self.current_type == "video":
+            return {
+                "type": self.current_type,
+                "path": self.current_path,
+                "playback": self.video_playback_snapshot(),
+            }
+        if self.current_type == "image":
             return {"type": self.current_type, "path": self.current_path}
         if self.current_type == "text":
             return {
@@ -432,8 +442,42 @@ class MediaWidget(QWidget):
             }
         return {"type": "empty"}
 
+
+    def video_playback_snapshot(self):
+        """Return the current video position/state for preview-to-live sync."""
+        if self.current_type != "video":
+            return {"position_ms": 0, "is_playing": False, "is_paused": False}
+        return {
+            "position_ms": self.position_ms(),
+            "is_playing": self.is_playing(),
+            "is_paused": self.is_paused(),
+        }
+
+    def apply_video_playback_snapshot(self, snapshot):
+        """Apply a saved video position/state after loading a descriptor."""
+        if self.current_type != "video":
+            return
+        snapshot = snapshot or {}
+        try:
+            position = int(snapshot.get("position_ms", 0) or 0)
+        except (TypeError, ValueError):
+            position = 0
+        should_play = bool(snapshot.get("is_playing", False))
+        should_pause = bool(snapshot.get("is_paused", False))
+
+        self.set_position(position)
+        if should_play:
+            self.play()
+        elif should_pause or position > 0:
+            self.pause()
+        else:
+            self.pause()
+        self.update_overlay_text()
+
     def play(self):
-        if self.current_type != "video" or self.blackout_enabled:
+        # Blackout hides the visual output, but it must not stop playback.
+        # This keeps the live projection synchronized with the operator preview.
+        if self.current_type != "video":
             return
         if self.current_backend == "vlc" and self.vlc_player:
             self._attach_vlc_to_widget()
@@ -525,17 +569,17 @@ class MediaWidget(QWidget):
         self.update_overlay_geometry()
 
     def set_blackout(self, enabled):
+        """Show or hide the blackout layer without changing playback/audio state."""
         self.blackout_enabled = enabled
         if enabled:
-            self.pause()
             self.stacked.setCurrentWidget(self.blackout_label)
             self.update_overlay_text()
             return
+
         if self.current_type == "video":
             self.stacked.setCurrentWidget(
                 self.vlc_video_widget if self.current_backend == "vlc" else self.video_widget
             )
-            self.play()
         elif self.current_type == "text":
             self.stacked.setCurrentWidget(self.text_page)
         else:

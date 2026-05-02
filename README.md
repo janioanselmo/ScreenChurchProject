@@ -369,6 +369,8 @@ A operação agora usa um fluxo único para evitar envios duplicados:
 
 Se o conteúdo da prévia já estiver ao vivo, o ScreenChurch não reenviará a mesma parte, evitando resets ou duplicação de vídeo/texto.
 
+Para vídeos, o envio ao vivo preserva o ponto atual da prévia. Se você assistir 10 ou 15 segundos na visualização e depois usar **⬆ Parte**, **⬆⬆ Tudo** ou **▶ Projetar**, a saída sincroniza com a mesma posição/estado. O **áudio válido é sempre o da prévia do operador**; a janela de projeção fica visual-only/silenciada para evitar áudio duplicado.
+
 ### 12. Navegação ao vivo por teclado
 
 Quando a janela de projeção estiver aberta e uma **letra** ou **Bíblia** estiver ao vivo, as setas do teclado navegam o conteúdo projetado:
@@ -734,6 +736,8 @@ The operator flow now uses a single live-send path to avoid duplicated sends:
 
 If the preview content is already live, ScreenChurch skips the duplicated send to avoid resetting videos or duplicating text.
 
+For videos, live sending preserves the current preview position. If you watch 10 or 15 seconds in the operator preview and then use **⬆ Part**, **⬆⬆ All** or **▶ Project**, the output synchronizes to the same position/state. The **operator preview is always the valid audio source**; the projection window is visual-only/muted to prevent duplicated audio.
+
 ### 12. Live keyboard navigation
 
 When the projection window is open and **lyrics** or **Bible text** is live, the keyboard arrows navigate the projected content:
@@ -780,3 +784,22 @@ Alt+1..9    Select part
 Ctrl+S      Save service
 Ctrl+O      Open service
 ```
+
+
+### Fluxo seguro de vídeo, áudio e blackout
+
+- A prévia do operador é a fonte principal de áudio.
+- A janela de projeção fica sempre sem áudio e acompanha visualmente o vídeo enviado ao vivo.
+- Os comandos Play, Pause, Stop e busca de tempo atuam primeiro na prévia. Se o mesmo vídeo estiver ao vivo, a projeção é sincronizada com a posição e o estado da prévia.
+- O botão Projetar apenas abre ou fecha a janela do telão; ele não duplica áudio.
+- Os botões Enviar parte e Enviar tudo copiam a prévia para a projeção sem criar uma segunda fonte de áudio.
+- O Blackout apenas oculta ou revela a imagem na projeção. Ele não pausa, reinicia, silencia ou altera o vídeo da prévia.
+
+### Safe video, audio, and blackout flow
+
+- The operator preview is the main audio source.
+- The projection window is always muted and follows the live video visually.
+- Play, Pause, Stop, and seek commands act on the preview first. If the same video is live, the projection is synchronized to the preview position and state.
+- The Project button only opens or closes the output window; it does not duplicate audio.
+- Send part and Send all copy the preview to the projection without creating a second audio source.
+- Blackout only hides or reveals the projection image. It does not pause, restart, mute, or change the preview video.

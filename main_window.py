@@ -1014,18 +1014,40 @@ class MainWindow(
         self.update_global_status()
 
     def sync_preview_audio(self):
+        """Keep the operator preview as the single audio source.
+
+        The projection window is only the visual output. This avoids duplicate
+        audio when a video is playing in preview and is also sent live.
+        """
         for media_widget in self.media_widgets:
-            media_widget.set_muted(self.is_projection_active())
+            media_widget.set_muted(False)
 
     def sync_projection_playback(self):
         projection_active = self.is_projection_active()
-        for media_widget in self.projection_window.media_widgets:
-            media_widget.set_muted(not projection_active)
-            if media_widget.current_type == "video":
-                if projection_active and not media_widget.blackout_enabled:
-                    media_widget.play()
-                else:
-                    media_widget.pause()
+        for index, media_widget in enumerate(self.projection_window.media_widgets):
+            media_widget.set_muted(True)
+            if media_widget.current_type != "video":
+                continue
+            if index < len(self.media_widgets):
+                preview_descriptor = self.media_widgets[index].media_descriptor()
+                live_descriptor = (
+                    self.live_descriptors[index]
+                    if index < len(self.live_descriptors)
+                    else {}
+                )
+                if (
+                    preview_descriptor.get("type") == "video"
+                    and self.descriptor_content_signature(preview_descriptor)
+                    == self.descriptor_content_signature(live_descriptor)
+                ):
+                    self.sync_live_video_from_preview(
+                        index, dict(preview_descriptor), media_widget
+                    )
+                    continue
+            if projection_active:
+                media_widget.play()
+            else:
+                media_widget.pause()
 
     def preview_size_for_output(self, width, height):
         """Return a reduced operator-preview size for a real projection panel."""
@@ -1053,7 +1075,7 @@ class MainWindow(
         preview_width, preview_height = self.preview_size_for_output(output_width, output_height)
         media_widget.set_panel_size(preview_width, preview_height)
         media_widget.set_loop_enabled(self.loop_checkbox.isChecked())
-        media_widget.set_muted(self.is_projection_active())
+        media_widget.set_muted(False)
         media_widget.statusChanged.connect(partial(self.refresh_panel_status, index))
         media_widget.mediaError.connect(self.show_media_error)
 
@@ -1215,7 +1237,7 @@ class MainWindow(
         if not self.media_widgets[panel_index].load_media(filename):
             QMessageBox.warning(self, "Não foi possível carregar", "O arquivo selecionado não pôde ser carregado.")
             return False
-        self.media_widgets[panel_index].set_muted(self.is_projection_active())
+        self.media_widgets[panel_index].set_muted(False)
         if track_recent:
             self.record_recent_media(panel_index, filename)
             self.add_to_media_library(filename)
@@ -1246,6 +1268,29 @@ class MainWindow(
         except TypeError:
             return repr(descriptor)
 
+    def descriptor_content_signature(self, descriptor):
+        """Return a signature that ignores transient playback position/state."""
+        descriptor = dict(descriptor or {})
+        descriptor.pop("playback", None)
+        try:
+            return json.dumps(descriptor, sort_keys=True, ensure_ascii=False)
+        except TypeError:
+            return repr(descriptor)
+
+    def sync_live_video_from_preview(self, panel_index, descriptor, target):
+        """Keep live video aligned with the operator preview position/state."""
+        source = self.media_widgets[panel_index]
+        playback = source.video_playback_snapshot()
+        descriptor["playback"] = playback
+        target.apply_video_playback_snapshot(playback)
+        target.set_muted(True)
+        if self.is_projection_active() and source.is_playing():
+            target.play()
+        elif self.is_projection_active():
+            target.pause()
+        source.set_muted(False)
+        self.live_descriptors[panel_index] = descriptor
+
     def send_panel_to_live(self, panel_index, _checked=False, announce=True):
         """Send exactly one preview panel to the live output.
 
@@ -1260,19 +1305,39 @@ class MainWindow(
         source = self.media_widgets[panel_index]
         descriptor = source.media_descriptor()
         current = self.live_descriptors[panel_index] if panel_index < len(self.live_descriptors) else {}
-        if self.descriptor_signature(descriptor) == self.descriptor_signature(current):
-            if announce:
-                self.show_status_message(f"Parte {panel_index + 1} já está ao vivo.", 2500)
-            return False
 
         self.projection_window.set_panel_count(len(self.media_widgets))
         self.projection_window.set_panel_sizes(self.panel_sizes())
         target = self.projection_window.media_widgets[panel_index]
         target.set_loop_enabled(self.loop_checkbox.isChecked())
+
+        same_content = (
+            self.descriptor_content_signature(descriptor)
+            == self.descriptor_content_signature(current)
+        )
+        if same_content and descriptor.get("type") != "video":
+            if announce:
+                self.show_status_message(f"Parte {panel_index + 1} já está ao vivo.", 2500)
+            return False
+        if same_content and descriptor.get("type") == "video":
+            self.sync_live_video_from_preview(panel_index, descriptor, target)
+            if announce:
+                self.show_status_message(
+                    f"Parte {panel_index + 1} sincronizada com a prévia.", 3000
+                )
+            self.save_session()
+            self.update_global_status()
+            return True
+
+        keep_blackout = self.blackout_enabled or target.blackout_enabled
         target.load_from_descriptor(descriptor)
-        target.set_muted(not self.is_projection_active())
-        if self.is_projection_active() and target.current_type == "video":
-            target.play()
+        target.set_muted(True)
+        if keep_blackout:
+            target.set_blackout(True)
+        if target.current_type == "video":
+            target.apply_video_playback_snapshot(descriptor.get("playback", {}))
+            if not self.is_projection_active():
+                target.pause()
 
         self.live_descriptors[panel_index] = descriptor
         if announce:
@@ -1363,37 +1428,59 @@ class MainWindow(
             if media_widget.current_type == "image" and len(playlist) > 1:
                 self.move_playlist(index, 1)
 
+    def live_matches_preview(self, panel_index):
+        """Return True when the live panel is the same content as preview."""
+        if panel_index >= len(self.media_widgets) or panel_index >= len(self.live_descriptors):
+            return False
+        preview_descriptor = self.media_widgets[panel_index].media_descriptor()
+        live_descriptor = self.live_descriptors[panel_index]
+        return (
+            self.descriptor_content_signature(preview_descriptor)
+            == self.descriptor_content_signature(live_descriptor)
+        )
+
+    def sync_live_panel_if_matching_preview(self, panel_index):
+        """Sync live video from preview only when both panels show the same content."""
+        if not self.live_matches_preview(panel_index):
+            return
+        if panel_index >= len(self.projection_window.media_widgets):
+            return
+        source = self.media_widgets[panel_index]
+        target = self.projection_window.media_widgets[panel_index]
+        if source.current_type != "video" or target.current_type != "video":
+            return
+        self.sync_live_video_from_preview(
+            panel_index,
+            dict(source.media_descriptor()),
+            target,
+        )
+
     def play_video(self, panel_index, _checked=False):
+        # The operator preview is the only audio source. Projection follows it muted.
         self.media_widgets[panel_index].play()
-        if panel_index < len(self.projection_window.media_widgets):
-            self.projection_window.media_widgets[panel_index].play()
+        self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
 
     def pause_video(self, panel_index, _checked=False):
         self.media_widgets[panel_index].pause()
-        if panel_index < len(self.projection_window.media_widgets):
-            self.projection_window.media_widgets[panel_index].pause()
+        self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
 
     def stop_video(self, panel_index, _checked=False):
         self.media_widgets[panel_index].stop()
-        if panel_index < len(self.projection_window.media_widgets):
-            self.projection_window.media_widgets[panel_index].stop()
+        self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
 
     def seek_video(self, panel_index, delta_ms, _checked=False):
         self.media_widgets[panel_index].seek_relative(delta_ms)
-        position = self.media_widgets[panel_index].position_ms()
-        if panel_index < len(self.projection_window.media_widgets):
-            self.projection_window.media_widgets[panel_index].set_position(position)
+        self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
 
     def set_video_position_from_slider(self, panel_index, slider, value):
         if not slider.isSliderDown():
             return
         self.media_widgets[panel_index].set_position(value)
-        if panel_index < len(self.projection_window.media_widgets):
-            self.projection_window.media_widgets[panel_index].set_position(value)
+        self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
 
     # ------------------------------------------------------------------
@@ -2006,7 +2093,7 @@ class MainWindow(
         for widget in self.projection_window.media_widgets:
             widget.set_blackout(self.blackout_enabled)
         self.blackout_button.setText("↩" if self.blackout_enabled else "⚫")
-        self.sync_projection_playback()
+        # Blackout only hides/shows the projection; it must not alter playback.
         self.save_session()
         self.update_global_status()
 
