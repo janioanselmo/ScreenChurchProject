@@ -359,23 +359,16 @@ Esc        cancela a busca rápida
 
 ### Fluxo padronizado de projeção
 
-A operação agora usa o botão **▶ Projetar** como comando principal para reduzir conflitos de áudio/vídeo.
+A operação usa o botão **▶ Projetar** como comando principal para reduzir conflitos de áudio/vídeo.
 
-- **▶ Projetar**: abre/fecha a janela do telão e sincroniza as partes marcadas.
-- **Checkbox Projetar em cada parte**: permite escolher uma ou várias partes que entram no telão.
+- **▶ Projetar**: abre/fecha a janela do telão e espelha todas as partes configuradas.
 - **Abas Mídias, Letras, Bíblia e Culto**: preparam conteúdo na prévia da parte escolhida.
 - **Blackout individual**: oculta somente a parte desejada, sem pausar ou reiniciar vídeo.
 - **Ao vivo**: é apenas status do que está na saída real.
 
-Exemplo:
+Não existe mais checkbox individual de projeção por parte. Ao projetar, todas as partes do layout são exibidas; para ocultar uma parte específica, use o **Blackout** daquela parte.
 
-```text
-☑ Parte 1  entra na projeção
-☑ Parte 2  entra na projeção
-☐ Parte 3  fica fora da projeção
-```
-
-Para vídeos, o botão **▶ Projetar** preserva o ponto atual da prévia. Se você assistir 10 ou 15 segundos na visualização e depois projetar, a saída sincroniza com a mesma posição/estado. A **prévia do operador permanece como única fonte de áudio**; a projeção apenas espelha o vídeo no telão sem criar uma segunda saída sonora.
+Para vídeos, o botão **▶ Projetar** preserva o ponto atual da prévia. Se você assistir 10 ou 15 segundos na visualização e depois projetar, a saída sincroniza com a mesma posição/estado. A **prévia do operador permanece como única fonte de áudio**; a projeção apenas espelha o vídeo no telão sem criar uma segunda saída sonora. Em alguns computadores Windows, o VLC pode abrir a nova superfície de vídeo em preto; por isso o ScreenChurch faz um refresh interno do decodificador no mesmo tempo do vídeo.
 
 ### 12. Navegação ao vivo por teclado
 
@@ -731,17 +724,16 @@ Esc        cancel fast search
 
 ### Standardized projection flow
 
-The operator flow now uses a single live-send path to avoid duplicated sends:
+The operator flow uses **▶ Project** as the main command to reduce audio/video conflicts:
 
-- **▶ Project**: only opens or closes the projector/output window; it does not send content.
-- **Media, Lyrics, Bible and Service tabs**: only prepare content in the selected part preview.
-- **⬆ Part**: sends only the selected part live.
-- **⬆⬆ All**: sends all prepared parts live.
+- **▶ Project**: opens/closes the projector/output window and mirrors all configured parts.
+- **Media, Lyrics, Bible and Service tabs**: prepare content in the selected part preview.
+- **Per-part Blackout**: hides only the selected part without pausing or restarting video.
 - **Live**: only shows the current real output status.
 
-If the preview content is already live, ScreenChurch skips the duplicated send to avoid resetting videos or duplicating text.
+There is no longer a per-part projection checkbox. When projecting, every part in the layout is shown; to hide a specific part, use that part's **Blackout** button.
 
-For videos, **▶ Project** preserves the current preview position. If you watch 10 or 15 seconds in the operator preview and then project, the output synchronizes to the same position/state. The **operator preview remains the only audio source**; the projection only mirrors the video on the output screen without creating a second audio output.
+For videos, **▶ Project** preserves the current preview position. If you watch 10 or 15 seconds in the operator preview and then project, the output synchronizes to the same position/state. The **operator preview remains the only audio source**; the projection only mirrors the video on the output screen without creating a second audio output. On some Windows computers, VLC may open the new video surface as black; ScreenChurch therefore performs an internal decoder refresh at the same timestamp.
 
 ### 12. Live keyboard navigation
 

@@ -453,7 +453,14 @@ class MediaWidget(QWidget):
         self.media_player.setVideoOutput(output_widget)
 
     def _refresh_vlc_surface(self, snapshot):
-        """Refresh VLC rendering after moving the native video surface."""
+        """Refresh VLC rendering after moving the native video surface.
+
+        On Windows, VLC can keep the new HWND black when the player is moved
+        while it is already decoding. A simple pause/play is not always enough.
+        The reliable workaround is a very small internal decoder restart at
+        the same timestamp. This does not create a second player, does not mute
+        anything, and preserves the current playback point.
+        """
         if self.current_backend != "vlc" or not self.vlc_player:
             return
 
@@ -466,29 +473,54 @@ class MediaWidget(QWidget):
         was_playing = bool(snapshot.get("is_playing", False))
         was_paused = bool(snapshot.get("is_paused", False))
 
-        def restore_position():
-            if self.current_type == "video" and self.vlc_player:
-                self.vlc_player.set_time(position)
-
-        def resume_if_needed():
-            if self.current_type != "video" or not self.vlc_player:
-                return
-            self.vlc_player.set_time(position)
-            if was_playing:
-                self.vlc_player.play()
-            elif was_paused or position > 0:
-                self.vlc_player.pause()
-            self.update_overlay_text()
-
         if was_playing:
-            # VLC/Windows often needs a real pause/play cycle after changing
-            # hwnd. This is not a second player and does not mute anything.
-            self.vlc_player.pause()
-            QTimer.singleShot(35, restore_position)
-            QTimer.singleShot(70, resume_if_needed)
+            self.force_vlc_decoder_refresh(position, should_play=True)
             return
 
-        QTimer.singleShot(35, resume_if_needed)
+        def restore_paused_surface():
+            if self.current_type != "video" or not self.vlc_player:
+                return
+            self.vlc_player.play()
+            QTimer.singleShot(80, lambda: self.vlc_player.set_time(position))
+            QTimer.singleShot(140, self.vlc_player.pause)
+            QTimer.singleShot(170, self.update_overlay_text)
+
+        if was_paused or position > 0:
+            restore_paused_surface()
+
+    def force_vlc_decoder_refresh(self, position_ms=None, should_play=True):
+        """Restart only the VLC decoder on the current surface.
+
+        This method is used after changing the native video output surface. It
+        keeps a single MediaPlayer instance, but restarts decoding at the same
+        position so the projection does not remain black.
+        """
+        if self.current_backend != "vlc" or not self.vlc_player:
+            return
+        if self.current_type != "video" or not self.current_path:
+            return
+
+        if position_ms is None:
+            position_ms = self.position_ms()
+        position_ms = max(0, int(position_ms or 0))
+
+        try:
+            self.vlc_player.stop()
+        except Exception:
+            pass
+
+        def restart():
+            if self.current_type != "video" or not self.vlc_player:
+                return
+            self._attach_vlc_to_widget(self._video_output_widget or self.vlc_video_widget)
+            self.vlc_player.play()
+            self.set_muted(self._muted)
+            QTimer.singleShot(120, lambda: self.vlc_player.set_time(position_ms))
+            if not should_play:
+                QTimer.singleShot(180, self.vlc_player.pause)
+            QTimer.singleShot(220, self.update_overlay_text)
+
+        QTimer.singleShot(40, restart)
 
     def attach_video_output_to_own_widget(self, refresh=True):
         """Restore video rendering to this preview panel."""

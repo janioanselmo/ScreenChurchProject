@@ -967,7 +967,12 @@ class MainWindow(
             return
         self.move_to_selected_monitor()
         self.projection_window.show_projection()
+        QApplication.processEvents()
         self.project_all_previews_to_output(announce=False)
+        # Some Windows/VLC combinations create the native projection surface a
+        # few milliseconds after the window is shown. A second, delayed bind
+        # prevents the common black-video/working-audio state.
+        QTimer.singleShot(180, lambda: self.project_all_previews_to_output(announce=False))
         self.fullscreen_button.setText("⏹")
         self.save_session()
         self.update_global_status()
@@ -996,10 +1001,12 @@ class MainWindow(
     def project_all_previews_to_output(self, announce=True):
         """Mirror all preview panels to the projection output.
 
-        v40 rule: there is no second video player for projected videos. The
+        v43 rule: there is no second video player for projected videos. The
         preview MediaWidget remains the single player and the single audio
         source. When projection is active, its video output is redirected to
-        the projection surface. Images/text are copied normally.
+        the projection surface and the VLC decoder is refreshed at the same
+        timestamp if Windows renders a black surface. Images/text are copied
+        normally.
         """
         if not self.validate_panel_sizes(show_message=True):
             return False
