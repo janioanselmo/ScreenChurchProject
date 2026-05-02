@@ -57,6 +57,8 @@ class MediaWidget(QWidget):
         self._vlc_available = False
         self.vlc_instance = None
         self.vlc_player = None
+        self._muted = False
+        self._video_output_widget = None
 
         self._setup_vlc_backend()
         self._build_ui()
@@ -127,6 +129,7 @@ class MediaWidget(QWidget):
         self.vlc_video_widget = QWidget(self)
         self.vlc_video_widget.setStyleSheet("background-color: #000;")
         self.stacked.addWidget(self.vlc_video_widget)
+        self._video_output_widget = self.vlc_video_widget
 
         self.blackout_label = QLabel("", self)
         self.blackout_label.setStyleSheet("background-color: #000;")
@@ -355,15 +358,22 @@ class MediaWidget(QWidget):
         self.current_text_footer = ""
         self.blackout_enabled = False
 
+        # Preserve the desired audio state across media reloads. Projection
+        # widgets are muted before loading, and some backends reset audio
+        # when a new media object is attached.
+        self.set_muted(self._muted)
+
         if self._vlc_available and self.load_video_with_vlc(filepath):
             self.current_backend = "vlc"
             self.stacked.setCurrentWidget(self.vlc_video_widget)
+            self.set_muted(self._muted)
             QTimer.singleShot(100, self.play)
             self.update_overlay_text()
             return True
 
         self.current_backend = "qt"
         self.stacked.setCurrentWidget(self.video_widget)
+        self.set_muted(self._muted)
         return self.load_video_with_qt(filepath)
 
     def load_video_with_vlc(self, filepath):
@@ -373,6 +383,7 @@ class MediaWidget(QWidget):
             self._attach_vlc_to_widget()
             media = self.vlc_instance.media_new(filepath)
             self.vlc_player.set_media(media)
+            self.set_muted(self._muted)
             return True
         except Exception as exc:
             self.mediaError.emit(
@@ -382,10 +393,13 @@ class MediaWidget(QWidget):
             )
             return False
 
-    def _attach_vlc_to_widget(self):
+    def _attach_vlc_to_widget(self, output_widget=None):
         if not self.vlc_player:
             return
-        window_id = int(self.vlc_video_widget.winId())
+        if output_widget is None:
+            output_widget = self._video_output_widget or self.vlc_video_widget
+        self._video_output_widget = output_widget
+        window_id = int(output_widget.winId())
         if sys.platform.startswith("win"):
             self.vlc_player.set_hwnd(window_id)
         elif sys.platform == "darwin":
@@ -398,9 +412,56 @@ class MediaWidget(QWidget):
         media_url = QUrl.fromLocalFile(filepath)
         self.media_player.setVideoOutput(self.video_widget)
         self.media_player.setMedia(QMediaContent(media_url))
-        QTimer.singleShot(0, self.media_player.play)
+        self.set_muted(self._muted)
+        QTimer.singleShot(0, self.play)
         self.update_overlay_text()
         return True
+
+
+    def video_surface_widget(self):
+        """Return the widget currently used to render this panel's video."""
+        if self.current_backend == "vlc" and self.vlc_player:
+            return self.vlc_video_widget
+        return self.video_widget
+
+    def attach_video_output_to_widget(self, output_widget):
+        """Attach this widget's single video player to another video surface.
+
+        This is used by the projection window in mirror mode: the operator
+        preview player remains the only player/audio source, while its video
+        output is redirected to the projection surface.
+        """
+        if self.current_type != "video":
+            return
+        if self.current_backend == "vlc" and self.vlc_player:
+            self._attach_vlc_to_widget(output_widget)
+            return
+        self.media_player.setVideoOutput(output_widget)
+
+    def attach_video_output_to_own_widget(self):
+        """Restore video rendering to this preview panel."""
+        if self.current_type != "video":
+            return
+        if self.current_backend == "vlc":
+            self._video_output_widget = self.vlc_video_widget
+            self._attach_vlc_to_widget(self.vlc_video_widget)
+            self.stacked.setCurrentWidget(self.vlc_video_widget)
+            return
+        self.media_player.setVideoOutput(self.video_widget)
+        self.stacked.setCurrentWidget(self.video_widget)
+
+    def prepare_external_video_surface(self, source_widget):
+        """Prepare this panel to receive another MediaWidget's video output."""
+        self.stop_all_video()
+        self.current_type = "video"
+        self.current_path = source_widget.current_path
+        self.current_backend = f"{source_widget.current_backend}-mirror"
+        self.blackout_enabled = False
+        if source_widget.current_backend == "vlc":
+            self.stacked.setCurrentWidget(self.vlc_video_widget)
+        else:
+            self.stacked.setCurrentWidget(self.video_widget)
+        self.update_overlay_text()
 
     def load_from_descriptor(self, descriptor):
         descriptor = descriptor or {}
@@ -480,11 +541,13 @@ class MediaWidget(QWidget):
         if self.current_type != "video":
             return
         if self.current_backend == "vlc" and self.vlc_player:
-            self._attach_vlc_to_widget()
+            self._attach_vlc_to_widget(self._video_output_widget or self.vlc_video_widget)
             self.vlc_player.play()
+            self.set_muted(self._muted)
             self.update_overlay_text()
             return
         self.media_player.play()
+        self.set_muted(self._muted)
 
     def pause(self):
         if self.current_type != "video":
@@ -578,7 +641,9 @@ class MediaWidget(QWidget):
 
         if self.current_type == "video":
             self.stacked.setCurrentWidget(
-                self.vlc_video_widget if self.current_backend == "vlc" else self.video_widget
+                self.vlc_video_widget
+                if str(self.current_backend).startswith("vlc")
+                else self.video_widget
             )
         elif self.current_type == "text":
             self.stacked.setCurrentWidget(self.text_page)
@@ -590,9 +655,28 @@ class MediaWidget(QWidget):
         self.loop_enabled = enabled
 
     def set_muted(self, muted):
+        """Force the audio state for this widget.
+
+        Projection widgets call this with True and must remain silent even
+        after a video reload. Setting volume to zero in addition to mute helps
+        VLC/Qt backends that may briefly reset the mute flag.
+        """
+        muted = bool(muted)
+        self._muted = muted
         self.media_player.setMuted(muted)
+        self.media_player.setVolume(0 if muted else 100)
         if self.vlc_player:
-            self.vlc_player.audio_set_mute(bool(muted))
+            self.vlc_player.audio_set_mute(muted)
+            try:
+                self.vlc_player.audio_set_volume(0 if muted else 100)
+            except Exception:
+                pass
+        if self.bg_vlc_player:
+            self.bg_vlc_player.audio_set_mute(True)
+            try:
+                self.bg_vlc_player.audio_set_volume(0)
+            except Exception:
+                pass
 
     def show_image_page(self):
         self.blackout_enabled = False
@@ -616,6 +700,7 @@ class MediaWidget(QWidget):
             return
         self.media_player.setPosition(0)
         self.media_player.play()
+        self.set_muted(self._muted)
         self.update_overlay_text()
 
     def handle_media_error(self, *_args):

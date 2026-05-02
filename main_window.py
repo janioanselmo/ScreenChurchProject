@@ -183,10 +183,6 @@ class MainWindow(
 
         projection_menu = menu_bar.addMenu("Projeção")
         self.add_menu_action(projection_menu, "Iniciar/parar projeção", self.toggle_fullscreen)
-        self.add_menu_action(projection_menu, "Enviar parte ao vivo", self.send_selected_to_live)
-        self.add_menu_action(projection_menu, "Enviar tudo ao vivo", self.send_all_to_live)
-        self.add_menu_action(projection_menu, "Blackout geral", self.toggle_blackout)
-        self.add_menu_action(projection_menu, "Tela limpa", self.clear_all_live)
 
         help_menu = menu_bar.addMenu("Ajuda")
         self.add_menu_action(help_menu, "Atalhos", self.show_shortcuts)
@@ -215,8 +211,6 @@ class MainWindow(
         self.remove_panel_button = QPushButton("➖")
         self.apply_layout_button = QPushButton("✅")
         self.save_layout_button = QPushButton("💾")
-        self.send_selected_live_button = QPushButton("⬆ Parte")
-        self.send_all_live_button = QPushButton("⬆⬆ Tudo")
         self.blackout_button = QPushButton("⚫ Blackout")
         self.clear_live_button = QPushButton("🧹 Limpar")
         self.mode_button = QPushButton("👁")
@@ -230,10 +224,6 @@ class MainWindow(
             (self.remove_panel_button, "Remover última parte"),
             (self.apply_layout_button, "Aplicar layout selecionado"),
             (self.save_layout_button, "Salvar layout atual"),
-            (self.send_selected_live_button, "Enviar parte selecionada ao vivo"),
-            (self.send_all_live_button, "Enviar tudo ao vivo"),
-            (self.blackout_button, "Blackout geral"),
-            (self.clear_live_button, "Limpar saída ao vivo"),
             (self.mode_button, "Ocultar/mostrar biblioteca"),
             (self.settings_button, "Ajustar dimensões das partes"),
             (self.fullscreen_button, "Projetar: abrir/fechar janela do telão"),
@@ -250,10 +240,6 @@ class MainWindow(
         self.remove_panel_button.clicked.connect(self.remove_last_panel)
         self.apply_layout_button.clicked.connect(self.apply_selected_layout_preset)
         self.save_layout_button.clicked.connect(self.save_current_layout_preset)
-        self.send_selected_live_button.clicked.connect(self.send_selected_to_live)
-        self.send_all_live_button.clicked.connect(self.send_all_to_live)
-        self.blackout_button.clicked.connect(self.toggle_blackout)
-        self.clear_live_button.clicked.connect(self.clear_all_live)
         self.mode_button.clicked.connect(self.toggle_operation_mode)
         self.settings_button.clicked.connect(self.open_projection_settings)
         self.fullscreen_button.clicked.connect(self.toggle_fullscreen)
@@ -326,18 +312,14 @@ class MainWindow(
         toolbar.addWidget(self.monitor_combo, 1)
         toolbar.addWidget(QLabel("Layout:"))
         toolbar.addWidget(self.layout_preset_combo, 1)
-        toolbar.addWidget(self.fullscreen_button)
         toolbar.addWidget(self.settings_button)
-        toolbar.addWidget(self.send_selected_live_button)
-        toolbar.addWidget(self.send_all_live_button)
-        toolbar.addWidget(self.blackout_button)
-        toolbar.addWidget(self.clear_live_button)
-        toolbar.addWidget(self.open_bible_button)
         toolbar.addWidget(self.apply_layout_button)
         toolbar.addWidget(self.save_layout_button)
-        toolbar.addWidget(self.loop_checkbox)
         toolbar.addWidget(self.add_panel_button)
         toolbar.addWidget(self.remove_panel_button)
+        toolbar.addWidget(self.loop_checkbox)
+        toolbar.addStretch(1)
+        toolbar.addWidget(self.fullscreen_button)
         toolbar.addWidget(self.mode_button)
 
         status_layout = QHBoxLayout()
@@ -938,8 +920,6 @@ class MainWindow(
     def bind_shortcuts(self):
         QShortcut(QKeySequence("F5"), self, activated=self.toggle_fullscreen)
         QShortcut(QKeySequence("F11"), self, activated=self.toggle_fullscreen)
-        QShortcut(QKeySequence("Esc"), self, activated=self.toggle_blackout)
-        QShortcut(QKeySequence("Ctrl+Return"), self, activated=self.send_selected_to_live)
         QShortcut(QKeySequence("Ctrl+,"), self, activated=self.open_projection_settings)
         QShortcut(QKeySequence("Ctrl+B"), self, activated=self.open_bible_window)
         QShortcut(QKeySequence("Ctrl+S"), self, activated=self.save_service_plan)
@@ -987,8 +967,7 @@ class MainWindow(
             return
         self.move_to_selected_monitor()
         self.projection_window.show_projection()
-        self.sync_preview_audio()
-        self.sync_projection_playback()
+        self.project_all_previews_to_output(announce=False)
         self.fullscreen_button.setText("⏹")
         self.save_session()
         self.update_global_status()
@@ -996,58 +975,119 @@ class MainWindow(
     def exit_fullscreen(self):
         if not self.is_projection_active():
             return
+        self.restore_preview_video_outputs()
         self.projection_window.hide_projection()
-        self.sync_preview_audio()
-        self.sync_projection_playback()
-        self.fullscreen_button.setText("📽")
+        self.fullscreen_button.setText("▶ Projetar")
         self.save_session()
         self.update_global_status()
 
     def is_projection_active(self):
         return self.projection_window.isVisible()
 
+    def selected_projection_part_indices(self):
+        """Return all panel indices that will be projected.
+
+        v40 removes per-part projection checkboxes. The operator now uses a
+        single Projetar command, and all existing parts are mirrored to the
+        output. Individual visibility remains controlled by each part blackout.
+        """
+        return list(range(len(self.media_widgets)))
+
+    def project_all_previews_to_output(self, announce=True):
+        """Mirror all preview panels to the projection output.
+
+        v40 rule: there is no second video player for projected videos. The
+        preview MediaWidget remains the single player and the single audio
+        source. When projection is active, its video output is redirected to
+        the projection surface. Images/text are copied normally.
+        """
+        if not self.validate_panel_sizes(show_message=True):
+            return False
+
+        self.projection_window.set_panel_count(len(self.media_widgets))
+        self.projection_window.set_panel_sizes(self.panel_sizes())
+        mirrored = 0
+
+        for index, source in enumerate(self.media_widgets):
+            if index >= len(self.projection_window.media_widgets):
+                continue
+
+            target = self.projection_window.media_widgets[index]
+            target.set_loop_enabled(self.loop_checkbox.isChecked())
+
+            descriptor = dict(source.media_descriptor())
+
+            if descriptor.get("type") == "video":
+                snapshot = source.video_playback_snapshot()
+                target.prepare_external_video_surface(source)
+                target.set_blackout(False)
+                output_widget = (
+                    target.vlc_video_widget
+                    if source.current_backend == "vlc"
+                    else target.video_widget
+                )
+                source.attach_video_output_to_widget(output_widget)
+                # Some VLC backends need a short refresh after changing the
+                # native video surface. Reapplying the same snapshot prevents
+                # a dark surface without creating a second player or changing
+                # audio ownership.
+                QTimer.singleShot(80, partial(source.apply_video_playback_snapshot, snapshot))
+                descriptor["playback"] = snapshot
+            else:
+                # Non-video content can be copied safely because it has no audio.
+                target.load_from_descriptor(descriptor)
+                target.set_blackout(False)
+
+            if index < len(self.live_descriptors):
+                self.live_descriptors[index] = descriptor
+            mirrored += 1
+
+        self.update_global_status()
+        self.save_session()
+        if announce:
+            self.show_status_message(
+                f"Projeção sincronizada com {mirrored} parte(s).",
+                3000,
+            )
+        return True
+
+    def sync_preview_panel_to_projection(self, panel_index):
+        """Update one projected panel when the projection is already open."""
+        if not self.is_projection_active():
+            return
+        if panel_index < 0 or panel_index >= len(self.media_widgets):
+            return
+        self.project_all_previews_to_output(announce=False)
+
     def handle_projection_hidden(self):
-        self.sync_preview_audio()
-        self.sync_projection_playback()
-        self.fullscreen_button.setText("📽")
+        self.restore_preview_video_outputs()
+        self.fullscreen_button.setText("▶ Projetar")
         self.save_session()
         self.update_global_status()
 
-    def sync_preview_audio(self):
-        """Keep the operator preview as the single audio source.
-
-        The projection window is only the visual output. This avoids duplicate
-        audio when a video is playing in preview and is also sent live.
-        """
+    def restore_preview_video_outputs(self):
+        """Return every video output to the operator preview panels."""
         for media_widget in self.media_widgets:
-            media_widget.set_muted(False)
+            if media_widget.current_type == "video":
+                snapshot = media_widget.video_playback_snapshot()
+                media_widget.attach_video_output_to_own_widget()
+                QTimer.singleShot(80, partial(media_widget.apply_video_playback_snapshot, snapshot))
+
+    def sync_preview_audio(self):
+        """Backward-compatible no-op.
+
+        v39 no longer changes mute state during projection. The preview player
+        is the only player/audio source for videos.
+        """
+        return
 
     def sync_projection_playback(self):
-        projection_active = self.is_projection_active()
-        for index, media_widget in enumerate(self.projection_window.media_widgets):
-            media_widget.set_muted(True)
-            if media_widget.current_type != "video":
-                continue
-            if index < len(self.media_widgets):
-                preview_descriptor = self.media_widgets[index].media_descriptor()
-                live_descriptor = (
-                    self.live_descriptors[index]
-                    if index < len(self.live_descriptors)
-                    else {}
-                )
-                if (
-                    preview_descriptor.get("type") == "video"
-                    and self.descriptor_content_signature(preview_descriptor)
-                    == self.descriptor_content_signature(live_descriptor)
-                ):
-                    self.sync_live_video_from_preview(
-                        index, dict(preview_descriptor), media_widget
-                    )
-                    continue
-            if projection_active:
-                media_widget.play()
-            else:
-                media_widget.pause()
+        """Backward-compatible no-op.
+
+        Projection no longer owns independent video playback. It only receives
+        the preview player's video output while projection is active.
+        """
+        return
 
     def preview_size_for_output(self, width, height):
         """Return a reduced operator-preview size for a real projection panel."""
@@ -1243,6 +1283,7 @@ class MainWindow(
             self.add_to_media_library(filename)
         self.refresh_panel_status(panel_index)
         self.update_global_status()
+        self.sync_preview_panel_to_projection(panel_index)
         if announce:
             self.show_load_confirmation(panel_index, filename)
         return True
@@ -1251,6 +1292,7 @@ class MainWindow(
         self.media_widgets[panel_index].load_text(title, body, footer, kind)
         self.refresh_panel_status(panel_index)
         self.update_global_status()
+        self.sync_preview_panel_to_projection(panel_index)
         self.save_session()
 
     def load_descriptor_to_preview(self, descriptor, panel_index):
@@ -1259,6 +1301,7 @@ class MainWindow(
         self.media_widgets[panel_index].load_from_descriptor(descriptor)
         self.refresh_panel_status(panel_index)
         self.select_panel(panel_index)
+        self.sync_preview_panel_to_projection(panel_index)
         self.save_session()
 
     def descriptor_signature(self, descriptor):
@@ -1278,17 +1321,23 @@ class MainWindow(
             return repr(descriptor)
 
     def sync_live_video_from_preview(self, panel_index, descriptor, target):
-        """Keep live video aligned with the operator preview position/state."""
+        """Attach the preview video output to the live surface when needed."""
+        if not self.is_projection_active():
+            return
+        if panel_index not in set(self.selected_projection_part_indices()):
+            return
         source = self.media_widgets[panel_index]
-        playback = source.video_playback_snapshot()
-        descriptor["playback"] = playback
-        target.apply_video_playback_snapshot(playback)
-        target.set_muted(True)
-        if self.is_projection_active() and source.is_playing():
-            target.play()
-        elif self.is_projection_active():
-            target.pause()
-        source.set_muted(False)
+        if source.current_type != "video":
+            return
+        target.prepare_external_video_surface(source)
+        output_widget = (
+            target.vlc_video_widget
+            if source.current_backend == "vlc"
+            else target.video_widget
+        )
+        source.attach_video_output_to_widget(output_widget)
+        descriptor = dict(descriptor or source.media_descriptor())
+        descriptor["playback"] = source.video_playback_snapshot()
         self.live_descriptors[panel_index] = descriptor
 
     def send_panel_to_live(self, panel_index, _checked=False, announce=True):
@@ -1331,13 +1380,15 @@ class MainWindow(
 
         keep_blackout = self.blackout_enabled or target.blackout_enabled
         target.load_from_descriptor(descriptor)
-        target.set_muted(True)
         if keep_blackout:
             target.set_blackout(True)
         if target.current_type == "video":
             target.apply_video_playback_snapshot(descriptor.get("playback", {}))
+            target.set_muted(True)
             if not self.is_projection_active():
                 target.pause()
+        else:
+            target.set_muted(True)
 
         self.live_descriptors[panel_index] = descriptor
         if announce:
@@ -1456,23 +1507,26 @@ class MainWindow(
         )
 
     def play_video(self, panel_index, _checked=False):
-        # The operator preview is the only audio source. Projection follows it muted.
         self.media_widgets[panel_index].play()
+        self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
 
     def pause_video(self, panel_index, _checked=False):
         self.media_widgets[panel_index].pause()
+        self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
 
     def stop_video(self, panel_index, _checked=False):
         self.media_widgets[panel_index].stop()
+        self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
 
     def seek_video(self, panel_index, delta_ms, _checked=False):
         self.media_widgets[panel_index].seek_relative(delta_ms)
+        self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
 
@@ -1480,6 +1534,7 @@ class MainWindow(
         if not slider.isSliderDown():
             return
         self.media_widgets[panel_index].set_position(value)
+        self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
 
@@ -1974,7 +2029,12 @@ class MainWindow(
         self.projection_window.set_panel_count(len(self.media_widgets))
         self.projection_window.set_panel_sizes(self.panel_sizes())
         for index, descriptor in enumerate(self.live_descriptors):
-            self.projection_window.media_widgets[index].load_from_descriptor(descriptor)
+            target = self.projection_window.media_widgets[index]
+            target.set_muted(True)
+            target.load_from_descriptor(descriptor)
+            target.set_muted(True)
+            if target.current_type == "video" and not self.is_projection_active():
+                target.pause()
         self.service_items = self.service_items_from_storage(data.get("service_items", []))
         self.refresh_service_list()
         self.refresh_target_panel_combo()
@@ -2030,7 +2090,8 @@ class MainWindow(
         active = "ativa" if self.is_projection_active() else "parada"
         self.active_output_label.setText(f"Projeção {active} | Saída: {output_width}×{output_height}")
         self.global_state_label.setText(
-            f"Partes: {len(self.media_widgets)} | Usado: {total_width}×{max_height} | Destino: parte {self.target_panel_index() + 1}"
+            f"Partes: {len(self.media_widgets)} | "
+            f"Usado: {total_width}×{max_height} | Destino: parte {self.target_panel_index() + 1}"
         )
         self.live_status_text.setPlainText(self.live_status())
 
@@ -2041,12 +2102,14 @@ class MainWindow(
             state = "blackout" if index < len(self.projection_window.media_widgets) and self.projection_window.media_widgets[index].blackout_enabled else "visível"
             lines.append(f"Parte {index + 1}: {label} [{state}]")
         lines.append("")
-        lines.append("As abas preparam a prévia. Use ⬆ ou ⬆⬆ na barra superior para enviar ao vivo.")
+        lines.append("As abas preparam a prévia. Use ▶ Projetar para espelhar todas as partes.")
         return "\n".join(lines)
 
     @staticmethod
     def descriptor_label(descriptor):
         descriptor = descriptor or {}
+        if descriptor.get("type") == "excluded":
+            return "Não incluída"
         if descriptor.get("type") in {"image", "video"}:
             return os.path.basename(descriptor.get("path", "")) or descriptor.get("type")
         if descriptor.get("type") == "text":

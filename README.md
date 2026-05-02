@@ -359,17 +359,23 @@ Esc        cancela a busca rápida
 
 ### Fluxo padronizado de projeção
 
-A operação agora usa um fluxo único para evitar envios duplicados:
+A operação agora usa o botão **▶ Projetar** como comando principal para reduzir conflitos de áudio/vídeo.
 
-- **▶ Projetar**: apenas abre ou fecha a janela do telão/projetor; não envia conteúdo.
-- **Abas Mídias, Letras, Bíblia e Culto**: apenas preparam conteúdo na prévia da parte escolhida.
-- **⬆ Parte**: envia somente a parte selecionada para o ao vivo.
-- **⬆⬆ Tudo**: envia todas as partes preparadas para o ao vivo.
+- **▶ Projetar**: abre/fecha a janela do telão e sincroniza as partes marcadas.
+- **Checkbox Projetar em cada parte**: permite escolher uma ou várias partes que entram no telão.
+- **Abas Mídias, Letras, Bíblia e Culto**: preparam conteúdo na prévia da parte escolhida.
+- **Blackout individual**: oculta somente a parte desejada, sem pausar ou reiniciar vídeo.
 - **Ao vivo**: é apenas status do que está na saída real.
 
-Se o conteúdo da prévia já estiver ao vivo, o ScreenChurch não reenviará a mesma parte, evitando resets ou duplicação de vídeo/texto.
+Exemplo:
 
-Para vídeos, o envio ao vivo preserva o ponto atual da prévia. Se você assistir 10 ou 15 segundos na visualização e depois usar **⬆ Parte**, **⬆⬆ Tudo** ou **▶ Projetar**, a saída sincroniza com a mesma posição/estado. O **áudio válido é sempre o da prévia do operador**; a janela de projeção fica visual-only/silenciada para evitar áudio duplicado.
+```text
+☑ Parte 1  entra na projeção
+☑ Parte 2  entra na projeção
+☐ Parte 3  fica fora da projeção
+```
+
+Para vídeos, o botão **▶ Projetar** preserva o ponto atual da prévia. Se você assistir 10 ou 15 segundos na visualização e depois projetar, a saída sincroniza com a mesma posição/estado. A **prévia do operador permanece como única fonte de áudio**; a projeção apenas espelha o vídeo no telão sem criar uma segunda saída sonora.
 
 ### 12. Navegação ao vivo por teclado
 
@@ -412,8 +418,7 @@ python screenChurch.py
 F5/F11      Iniciar/parar projeção
 Ctrl+B      Abrir Bíblia
 ←/→ ↑/↓     Navegar letra/Bíblia ao vivo
-Esc         Blackout geral
-Ctrl+Enter  Enviar parte selecionada ao vivo
+Esc         Fecha/cancela busca rápida quando aplicável
 Ctrl+,      Ajustes de layout/partes
 Alt+1..9    Selecionar parte
 Ctrl+S      Salvar culto
@@ -736,7 +741,7 @@ The operator flow now uses a single live-send path to avoid duplicated sends:
 
 If the preview content is already live, ScreenChurch skips the duplicated send to avoid resetting videos or duplicating text.
 
-For videos, live sending preserves the current preview position. If you watch 10 or 15 seconds in the operator preview and then use **⬆ Part**, **⬆⬆ All** or **▶ Project**, the output synchronizes to the same position/state. The **operator preview is always the valid audio source**; the projection window is visual-only/muted to prevent duplicated audio.
+For videos, **▶ Project** preserves the current preview position. If you watch 10 or 15 seconds in the operator preview and then project, the output synchronizes to the same position/state. The **operator preview remains the only audio source**; the projection only mirrors the video on the output screen without creating a second audio output.
 
 ### 12. Live keyboard navigation
 
@@ -777,8 +782,7 @@ python screenChurch.py
 F5/F11      Start/stop projection
 Ctrl+B      Open Bible
 ←/→ ↑/↓     Navigate live lyrics/Bible
-Esc         Global blackout
-Ctrl+Enter  Send selected part live
+Esc         Close/cancel quick search when applicable
 Ctrl+,      Layout/part settings
 Alt+1..9    Select part
 Ctrl+S      Save service
@@ -789,17 +793,92 @@ Ctrl+O      Open service
 ### Fluxo seguro de vídeo, áudio e blackout
 
 - A prévia do operador é a fonte principal de áudio.
-- A janela de projeção fica sempre sem áudio e acompanha visualmente o vídeo enviado ao vivo.
+- Com a projeção ativa, a saída projetada acompanha visualmente o mesmo ponto/estado da prévia, mas não assume o áudio.
 - Os comandos Play, Pause, Stop e busca de tempo atuam primeiro na prévia. Se o mesmo vídeo estiver ao vivo, a projeção é sincronizada com a posição e o estado da prévia.
-- O botão Projetar apenas abre ou fecha a janela do telão; ele não duplica áudio.
-- Os botões Enviar parte e Enviar tudo copiam a prévia para a projeção sem criar uma segunda fonte de áudio.
-- O Blackout apenas oculta ou revela a imagem na projeção. Ele não pausa, reinicia, silencia ou altera o vídeo da prévia.
+- O botão Projetar abre/fecha o telão e espelha todas as partes configuradas.
+- Não existem mais comandos separados de Enviar parte/Enviar tudo na barra superior.
+- O Blackout individual apenas oculta ou revela uma parte da projeção. Ele não pausa, reinicia, silencia ou altera o vídeo da prévia.
 
 ### Safe video, audio, and blackout flow
 
 - The operator preview is the main audio source.
-- The projection window is always muted and follows the live video visually.
+- The operator preview remains the only audio source; projection mirrors the visual output.
 - Play, Pause, Stop, and seek commands act on the preview first. If the same video is live, the projection is synchronized to the preview position and state.
-- The Project button only opens or closes the output window; it does not duplicate audio.
-- Send part and Send all copy the preview to the projection without creating a second audio source.
-- Blackout only hides or reveals the projection image. It does not pause, restart, mute, or change the preview video.
+- The Project button opens/closes the output window and mirrors all configured parts.
+- There are no separate Send part/Send all commands in the top bar.
+- Per-panel blackout only hides or reveals one projection part. It does not pause, restart, mute, or change the preview video.
+
+
+## Fluxo simplificado de projeção (v40)
+
+A operação foi simplificada para reduzir conflitos de áudio/vídeo:
+
+- **Projetar** é o comando principal: ele abre/fecha o telão e espelha todas as partes configuradas.
+- Os checkboxes individuais **Projetar** foram removidos dos cards das partes.
+- A barra superior não possui mais **Enviar parte**, **Enviar tudo**, **Blackout geral** nem atalho da Bíblia.
+- O **Preview** é o único player real de vídeo e áudio.
+- A projeção acompanha visualmente o mesmo instante do Preview, sem criar novo play e sem duplicar áudio.
+- Use o blackout individual de cada parte quando quiser ocultar uma área específica.
+
+## Simplified projection flow (v40)
+
+The operation flow was simplified to avoid audio/video conflicts:
+
+- **Project** is the main command: it opens/closes the output screen and mirrors all configured parts.
+- Per-part **Project** checkboxes were removed from the part cards.
+- The top bar no longer has **Send part**, **Send all**, **Global blackout**, or a Bible shortcut.
+- The **Preview** is the only real video/audio player.
+- Projection visually follows the same Preview instant, without starting another playback and without duplicated audio.
+- Use each part blackout button when you need to hide a specific output area.
+
+---
+
+## v40 - Fluxo de vídeo com player único (Preview -> Projeção)
+
+Nesta versão o fluxo de vídeo foi simplificado para evitar conflito de áudio entre a prévia e o telão.
+
+Regra aplicada:
+
+- o **Preview** é o único player real de vídeo e áudio;
+- o botão **Projetar** não cria uma segunda reprodução;
+- o botão **Projetar** apenas redireciona a saída visual do vídeo atual para a superfície de projeção;
+- o vídeo não reinicia ao projetar;
+- o vídeo não é mutado ao projetar;
+- o áudio não é duplicado;
+- ao fechar a projeção, a saída visual retorna para o Preview.
+
+Comportamento esperado:
+
+1. Carregue um vídeo em uma parte.
+2. Dê Play no Preview.
+3. Aguarde alguns segundos.
+4. Clique em **Projetar**.
+5. O telão passa a mostrar o mesmo vídeo no mesmo instante, sem novo play e sem duplicação de áudio.
+
+Observação: durante a projeção de vídeo, o player real pertence ao Preview. Por isso, o controle Play/Pause/Stop continua sendo feito na área de operação.
+
+---
+
+## v40 - Single-player video flow (Preview -> Projection)
+
+This version simplifies video playback to avoid audio conflicts between the operator preview and the projector output.
+
+Applied rule:
+
+- the **Preview** is the only real video/audio player;
+- the **Project** button does not create a second playback instance;
+- the **Project** button only redirects the current video output to the projection surface;
+- the video does not restart when projected;
+- the video is not muted when projected;
+- audio is not duplicated;
+- when projection is closed, video output returns to the Preview.
+
+Expected behavior:
+
+1. Load a video into a part.
+2. Press Play in the Preview.
+3. Wait a few seconds.
+4. Click **Project**.
+5. The projector shows the same video at the same instant, with no new playback and no duplicated audio.
+
+Note: during video projection, the real player belongs to the Preview. Play/Pause/Stop controls remain in the operator area.

@@ -96,24 +96,18 @@ class ProjectionWindow(QWidget):
         )
 
     def show_projection(self):
+        """Show the projection surface without starting any player.
+
+        Video playback is owned by the operator preview. Projection panels are
+        only rendering surfaces in mirror mode, so this method must not call
+        play(), pause() or mute().
+        """
         self.update_output_geometry()
-        for media_widget in self.media_widgets:
-            # Audio is always controlled by the operator preview.
-            # The projection window is visual-only to avoid duplicated audio.
-            media_widget.set_muted(True)
-            if (
-                media_widget.current_type == "video"
-                and not media_widget.blackout_enabled
-            ):
-                media_widget.play()
         self.show()
         self.raise_()
 
     def hide_projection(self):
-        for media_widget in self.media_widgets:
-            if media_widget.current_type == "video":
-                media_widget.pause()
-            media_widget.set_muted(True)
+        """Hide the projection surface without touching preview playback."""
         self.hide()
 
     def keyPressEvent(self, event):
