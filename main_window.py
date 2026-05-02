@@ -969,10 +969,6 @@ class MainWindow(
         self.projection_window.show_projection()
         QApplication.processEvents()
         self.project_all_previews_to_output(announce=False)
-        # Some Windows/VLC combinations create the native projection surface a
-        # few milliseconds after the window is shown. A second, delayed bind
-        # prevents the common black-video/working-audio state.
-        QTimer.singleShot(180, lambda: self.project_all_previews_to_output(announce=False))
         self.fullscreen_button.setText("⏹")
         self.save_session()
         self.update_global_status()
@@ -1072,7 +1068,7 @@ class MainWindow(
         for media_widget in self.media_widgets:
             if media_widget.current_type == "video":
                 snapshot = media_widget.video_playback_snapshot()
-                media_widget.attach_video_output_to_own_widget(refresh=True)
+                media_widget.attach_video_output_to_own_widget(refresh=False)
                 QTimer.singleShot(120, partial(media_widget.apply_video_playback_snapshot, snapshot))
 
     def sync_preview_audio(self):
@@ -1217,7 +1213,8 @@ class MainWindow(
         stop_btn.clicked.connect(partial(self.stop_video, index))
         rewind_btn.clicked.connect(partial(self.seek_video, index, -SEEK_STEP_MS))
         forward_btn.clicked.connect(partial(self.seek_video, index, SEEK_STEP_MS))
-        slider.valueChanged.connect(partial(self.set_video_position_from_slider, index, slider))
+        slider.sliderMoved.connect(partial(self.set_video_position_from_slider, index, slider))
+        slider.sliderReleased.connect(partial(self.commit_video_position_from_slider, index, slider))
         for button in (play_btn, pause_btn, stop_btn, rewind_btn, forward_btn):
             video_row.addWidget(button)
         video_row.addWidget(slider, 1)
@@ -1538,6 +1535,12 @@ class MainWindow(
         if not slider.isSliderDown():
             return
         self.media_widgets[panel_index].set_position(value)
+        self.sync_preview_panel_to_projection(panel_index)
+        self.sync_live_panel_if_matching_preview(panel_index)
+        self.refresh_panel_status(panel_index)
+
+    def commit_video_position_from_slider(self, panel_index, slider):
+        self.media_widgets[panel_index].set_position(slider.value())
         self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
         self.refresh_panel_status(panel_index)
@@ -2080,12 +2083,14 @@ class MainWindow(
         for key in ("play", "pause", "stop", "rewind", "forward"):
             controls[key].setVisible(is_video)
             controls[key].setEnabled(is_video)
-        controls["slider"].setVisible(is_video)
-        controls["slider"].setEnabled(is_video and duration > 0)
-        controls["slider"].blockSignals(True)
-        controls["slider"].setRange(0, duration if duration > 0 else 0)
-        controls["slider"].setValue(min(position, duration) if duration > 0 else 0)
-        controls["slider"].blockSignals(False)
+        slider = controls["slider"]
+        slider.setVisible(is_video)
+        slider.setEnabled(is_video and duration > 0)
+        if not slider.isSliderDown():
+            slider.blockSignals(True)
+            slider.setRange(0, duration if duration > 0 else 0)
+            slider.setValue(min(position, duration) if duration > 0 else 0)
+            slider.blockSignals(False)
 
     def update_global_status(self):
         output_width, output_height = self.selected_output_size()

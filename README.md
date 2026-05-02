@@ -911,3 +911,20 @@ Note: during video projection, the real player belongs to the Preview. Play/Paus
 - When moving the visual output from Preview to Projection, the app performs a small internal VLC surface refresh without creating another player, muting, or restarting the video.
 - The Project button continues to mirror all configured parts.
 - Per-part Blackout remains the individual visibility control.
+
+
+### v44 — Projeção suave e barra de progresso
+
+- A projeção mantém o conceito de player único: o vídeo do Preview é a fonte real.
+- A troca para o telão não reinicia mais o decodificador VLC, evitando o repique visual.
+- A barra de progresso agora respeita o arraste do mouse: enquanto o operador segura o slider, o sistema não força o retorno para o tempo antigo.
+- Ao soltar o mouse, o novo tempo é confirmado e refletido na projeção ativa.
+- `Projetar` continua sem criar segundo áudio e sem tocar outro player por cima do Preview.
+
+### v44 — Smooth projection and progress bar
+
+- Projection keeps the single-player concept: Preview remains the real video source.
+- Switching to the output screen no longer restarts the VLC decoder, avoiding visible playback bumps.
+- The progress bar now respects mouse dragging: while the operator holds the slider, the UI does not force it back to the old timestamp.
+- Releasing the mouse commits the new timestamp and reflects it in the active projection.
+- `Project` still does not create a second audio source or play another player over Preview.
