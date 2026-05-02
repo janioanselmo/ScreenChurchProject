@@ -362,30 +362,47 @@ class SongLibraryMixin:
             self.song_section_list.setCurrentRow(0)
             item = self.song_section_list.currentItem()
         slide = item.data(Qt.UserRole) if item else {}
+        row = self.song_section_list.currentRow()
+        if row < 0:
+            row = 0
         title = self.song_title_edit.text().strip() or "Música"
-        section = slide.get("name", "Slide") if isinstance(slide, dict) else "Slide"
-        text = slide.get("text", "") if isinstance(slide, dict) else ""
-        footer_parts = []
-        background = None
-        if isinstance(slide, dict):
-            background = slide.get("background")
-        if not background and self.song_default_background_path:
-            background = {
-                "type": self.song_default_background_type,
-                "path": self.song_default_background_path,
-            }
+        selected_song = self.selected_song_from_list()
+        if not selected_song:
+            selected_song = self.current_song_data_from_form()
+        return self.build_song_section_descriptor(selected_song, row, slide=slide, title_override=title)
+
+    def build_song_section_descriptor(self, song, section_index, slide=None, title_override=None, base_options=None):
+        """Build a text descriptor for a song slide, including live keyboard navigation metadata."""
+        song = song or {}
+        sections = song.get("sections") or []
+        if not sections:
+            return {"type": "empty"}
+        section_index = max(0, min(int(section_index or 0), len(sections) - 1))
+        slide = slide if isinstance(slide, dict) else sections[section_index]
+        title = title_override or song.get("title") or "Música"
+        section = slide.get("name", f"Slide {section_index + 1}")
+        text = slide.get("text", "")
+
+        background = slide.get("background")
+        if not background:
+            background = song.get("default_background")
         background_type = background.get("type", "none") if isinstance(background, dict) else "none"
         background_path = background.get("path", "") if isinstance(background, dict) else ""
-        song_style = {}
-        selected_song = self.selected_song_from_list()
-        if isinstance(selected_song, dict):
-            song_style = dict(selected_song.get("style") or {})
+
+        song_style = dict(song.get("style") or {})
         options = dict(song_style)
+        if isinstance(base_options, dict):
+            options.update({k: v for k, v in base_options.items() if k != "_navigation"})
         options.update(
             {
-                "text_case": self.song_text_case if self.song_text_case != "normal" else song_style.get("text_case", "normal"),
+                "text_case": self.song_text_case if self.song_text_case != "normal" else options.get("text_case", "normal"),
                 "background_type": background_type,
                 "background_path": background_path,
+                "_navigation": {
+                    "type": "song",
+                    "title": song.get("title") or title,
+                    "section_index": section_index,
+                },
             }
         )
         return {
@@ -393,7 +410,7 @@ class SongLibraryMixin:
             "kind": "letra",
             "title": f"{title} · {section}",
             "body": text,
-            "footer": " | ".join(footer_parts),
+            "footer": "",
             "options": options,
         }
 

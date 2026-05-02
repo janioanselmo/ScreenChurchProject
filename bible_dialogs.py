@@ -971,6 +971,8 @@ class BibleNavigatorDialog(QDialog):
             book = data["book"]
             chapter = data["chapter"]
             verse = data["verse"]
+            first = int(verse.get("number", 0))
+            last = first
             reference = f"{book.get('name')} {chapter.get('number')}:{verse.get('number')}"
             body = f"{verse.get('number')}. {verse.get('text')}"
         else:
@@ -979,17 +981,25 @@ class BibleNavigatorDialog(QDialog):
             selected_items = self.verse_list.selectedItems() or [item]
             verses = [i.data(Qt.UserRole) for i in selected_items]
             verses = sorted(verses, key=lambda v: int(v.get("number", 0)))
-            first = verses[0].get("number")
-            last = verses[-1].get("number")
+            first = int(verses[0].get("number", 0))
+            last = int(verses[-1].get("number", 0))
             reference = f"{book.get('name')} {chapter.get('number')}:{first}" + (f"-{last}" if last != first else "")
             body = "\n".join(f"{v.get('number')}. {v.get('text')}" for v in verses)
+        options = self.bible_text_options()
+        options["_navigation"] = {
+            "type": "bible",
+            "version": self.version_combo.currentText(),
+            "book": book.get("name"),
+            "chapter": int(chapter.get("number", 1)),
+            "verse": first,
+        }
         return {
             "type": "text",
             "kind": "bíblia",
             "title": reference,
             "body": body,
             "footer": self.version_combo.currentText(),
-            "options": self.bible_text_options(),
+            "options": options,
         }
 
     def cycle_bible_text_case(self):

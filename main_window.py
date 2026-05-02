@@ -705,7 +705,17 @@ class MainWindow(
         self.bible_dialog.activateWindow()
 
     def keyPressEvent(self, event):
-        """Open Bible quick search when typing inside the Bible tab."""
+        """Handle live navigation and Bible quick search keyboard workflows."""
+        if self.is_projection_active():
+            if event.key() in (Qt.Key_Right, Qt.Key_Down, Qt.Key_PageDown):
+                if self.navigate_live_text_content(1):
+                    event.accept()
+                    return
+            if event.key() in (Qt.Key_Left, Qt.Key_Up, Qt.Key_PageUp):
+                if self.navigate_live_text_content(-1):
+                    event.accept()
+                    return
+
         focus_widget = QApplication.focusWidget()
         text_fields = (QLineEdit, QTextEdit)
         is_typing_in_field = isinstance(focus_widget, text_fields)
@@ -725,6 +735,208 @@ class MainWindow(
             event.accept()
             return
         super().keyPressEvent(event)
+
+    # ------------------------------------------------------------------
+    # Live keyboard navigation
+    # ------------------------------------------------------------------
+    def navigate_live_text_content(self, step):
+        """Advance/rewind live song slides or Bible verses while projection is active."""
+        if not self.is_projection_active():
+            return False
+
+        for panel_index in self.live_navigation_candidate_indices():
+            descriptor = self.live_descriptor_for_panel(panel_index)
+            if descriptor.get("type") != "text":
+                continue
+            kind = descriptor.get("kind", "")
+            options = dict(descriptor.get("options", {}) or {})
+            navigation = dict(options.get("_navigation", {}) or {})
+            if kind == "letra" and navigation.get("type") == "song":
+                return self.navigate_live_song(panel_index, descriptor, navigation, step)
+            if kind == "bíblia" and navigation.get("type") == "bible":
+                return self.navigate_live_bible(panel_index, descriptor, navigation, step)
+        return False
+
+    def live_navigation_candidate_indices(self):
+        """Return selected panel first, then every other panel once."""
+        total = max(len(self.live_descriptors), len(self.projection_window.media_widgets))
+        indices = []
+        if 0 <= self.selected_panel_index < total:
+            indices.append(self.selected_panel_index)
+        indices.extend(index for index in range(total) if index not in indices)
+        return indices
+
+    def live_descriptor_for_panel(self, panel_index):
+        if 0 <= panel_index < len(self.live_descriptors):
+            descriptor = self.live_descriptors[panel_index]
+            if descriptor and descriptor.get("type") != "empty":
+                return descriptor
+        if 0 <= panel_index < len(self.projection_window.media_widgets):
+            return self.projection_window.media_widgets[panel_index].media_descriptor()
+        return {"type": "empty"}
+
+    def replace_live_text_descriptor(self, panel_index, descriptor):
+        """Replace the preview and live panel with a navigated text descriptor."""
+        self.load_descriptor_to_preview(descriptor, panel_index)
+        self.send_panel_to_live(panel_index)
+
+    def navigate_live_song(self, panel_index, descriptor, navigation, step):
+        title = str(navigation.get("title", "")).strip()
+        song = self.find_song_by_title(title)
+        if not song:
+            return False
+        sections = song.get("sections") or []
+        if not sections:
+            return False
+        current_index = int(navigation.get("section_index", 0) or 0)
+        next_index = current_index + int(step)
+        if next_index < 0 or next_index >= len(sections):
+            self.show_status_message("Não há mais slides nesta música.", 1800)
+            return True
+        options = dict(descriptor.get("options", {}) or {})
+        new_descriptor = self.build_song_section_descriptor(
+            song,
+            next_index,
+            base_options=options,
+        )
+        self.replace_live_text_descriptor(panel_index, new_descriptor)
+        self.select_song_slide_in_ui(song.get("title"), next_index)
+        self.show_status_message(
+            f"Música: slide {next_index + 1}/{len(sections)}",
+            1800,
+        )
+        return True
+
+    def find_song_by_title(self, title):
+        normalized = str(title or "").strip().lower()
+        for song in self.songs:
+            if str(song.get("title", "")).strip().lower() == normalized:
+                return song
+        return None
+
+    def select_song_slide_in_ui(self, title, slide_index):
+        if not hasattr(self, "song_list") or not hasattr(self, "song_section_list"):
+            return
+        for row in range(self.song_list.count()):
+            item = self.song_list.item(row)
+            song = item.data(Qt.UserRole) or {}
+            if song.get("title") == title:
+                self.song_list.setCurrentRow(row)
+                self.load_song_to_form(item)
+                break
+        if self.song_section_list.count():
+            self.song_section_list.setCurrentRow(
+                max(0, min(int(slide_index or 0), self.song_section_list.count() - 1))
+            )
+
+    def navigate_live_bible(self, panel_index, descriptor, navigation, step):
+        version = self.find_bible_version_by_display_name(navigation.get("version") or descriptor.get("footer"))
+        if not version:
+            return False
+        current = self.find_bible_position(
+            version,
+            navigation.get("book"),
+            navigation.get("chapter"),
+            navigation.get("verse"),
+        )
+        if not current:
+            return False
+        next_position = self.offset_bible_position(version, current, int(step))
+        if not next_position:
+            self.show_status_message("Não há mais versículos nesta direção.", 1800)
+            return True
+        options = dict(descriptor.get("options", {}) or {})
+        new_descriptor = self.build_bible_verse_descriptor(version, next_position, options)
+        self.replace_live_text_descriptor(panel_index, new_descriptor)
+        self.show_status_message(new_descriptor.get("title", "Bíblia"), 1800)
+        return True
+
+    def find_bible_version_by_display_name(self, version_name):
+        wanted = str(version_name or "").strip().lower()
+        for version in self.bible_versions:
+            if str(version.get("name", "")).strip().lower() == wanted:
+                return version
+        return self.bible_versions[0] if self.bible_versions else None
+
+    def find_bible_position(self, version, book_name, chapter_number, verse_number):
+        wanted_book = str(book_name or "").strip().lower()
+        try:
+            wanted_chapter = int(chapter_number)
+            wanted_verse = int(verse_number)
+        except (TypeError, ValueError):
+            return None
+        for book_index, book in enumerate(version.get("books", [])):
+            if str(book.get("name", "")).strip().lower() != wanted_book:
+                continue
+            for chapter_index, chapter in enumerate(book.get("chapters", [])):
+                if int(chapter.get("number", 0)) != wanted_chapter:
+                    continue
+                for verse_index, verse in enumerate(chapter.get("verses", [])):
+                    if int(verse.get("number", 0)) == wanted_verse:
+                        return {
+                            "book_index": book_index,
+                            "chapter_index": chapter_index,
+                            "verse_index": verse_index,
+                        }
+        return None
+
+    def offset_bible_position(self, version, position, step):
+        books = version.get("books", [])
+        book_index = int(position["book_index"])
+        chapter_index = int(position["chapter_index"])
+        verse_index = int(position["verse_index"]) + int(step)
+
+        while 0 <= book_index < len(books):
+            chapters = books[book_index].get("chapters", [])
+            while 0 <= chapter_index < len(chapters):
+                verses = chapters[chapter_index].get("verses", [])
+                if 0 <= verse_index < len(verses):
+                    return {
+                        "book_index": book_index,
+                        "chapter_index": chapter_index,
+                        "verse_index": verse_index,
+                    }
+                if step > 0:
+                    chapter_index += 1
+                    verse_index = 0
+                else:
+                    chapter_index -= 1
+                    if chapter_index >= 0:
+                        verse_index = len(chapters[chapter_index].get("verses", [])) - 1
+            if step > 0:
+                book_index += 1
+                chapter_index = 0
+                verse_index = 0
+            else:
+                book_index -= 1
+                if book_index >= 0:
+                    chapters = books[book_index].get("chapters", [])
+                    chapter_index = len(chapters) - 1
+                    verse_index = len(chapters[chapter_index].get("verses", [])) - 1 if chapters else -1
+        return None
+
+    def build_bible_verse_descriptor(self, version, position, base_options=None):
+        book = version["books"][position["book_index"]]
+        chapter = book["chapters"][position["chapter_index"]]
+        verse = chapter["verses"][position["verse_index"]]
+        verse_number = int(verse.get("number", 1))
+        reference = f"{book.get('name')} {chapter.get('number')}:{verse_number}"
+        options = dict(base_options or {})
+        options["_navigation"] = {
+            "type": "bible",
+            "version": version.get("name"),
+            "book": book.get("name"),
+            "chapter": int(chapter.get("number", 1)),
+            "verse": verse_number,
+        }
+        return {
+            "type": "text",
+            "kind": "bíblia",
+            "title": reference,
+            "body": f"{verse_number}. {verse.get('text', '')}",
+            "footer": version.get("name", "Bíblia"),
+            "options": options,
+        }
 
     # ------------------------------------------------------------------
     # Shortcuts and projection

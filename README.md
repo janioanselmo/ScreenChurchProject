@@ -336,6 +336,18 @@ Setas      alternam a sugestão de livro
 Esc        cancela a busca rápida
 ```
 
+
+### 12. Navegação ao vivo por teclado
+
+Quando a janela de projeção estiver aberta e uma **letra** ou **Bíblia** estiver ao vivo, as setas do teclado navegam o conteúdo projetado:
+
+```text
+Seta direita / Seta baixo / PageDown   avança slide da música ou versículo bíblico
+Seta esquerda / Seta cima / PageUp     retrocede slide da música ou versículo bíblico
+```
+
+A navegação só atua em conteúdos do tipo **letra** ou **Bíblia** e somente com a projeção ativa. Imagens e vídeos não são alterados por esses atalhos.
+
 ### 12. Instalação
 
 ```bash
@@ -365,6 +377,7 @@ python screenChurch.py
 ```text
 F5/F11      Iniciar/parar projeção
 Ctrl+B      Abrir Bíblia
+←/→ ↑/↓     Navegar letra/Bíblia ao vivo
 Esc         Blackout geral
 Ctrl+Enter  Enviar parte selecionada ao vivo
 Ctrl+,      Ajustes de layout/partes
@@ -656,6 +669,18 @@ Arrows     switch selected book suggestion
 Esc        cancel fast search
 ```
 
+
+### 12. Live keyboard navigation
+
+When the projection window is open and **lyrics** or **Bible text** is live, the keyboard arrows navigate the projected content:
+
+```text
+Right arrow / Down arrow / PageDown   next song slide or Bible verse
+Left arrow / Up arrow / PageUp        previous song slide or Bible verse
+```
+
+Navigation only affects **lyrics** and **Bible** text while projection is active. Images and videos are not changed by these shortcuts.
+
 ### 12. Installation
 
 ```bash
@@ -683,6 +708,7 @@ python screenChurch.py
 ```text
 F5/F11      Start/stop projection
 Ctrl+B      Open Bible
+←/→ ↑/↓     Navigate live lyrics/Bible
 Esc         Global blackout
 Ctrl+Enter  Send selected part live
 Ctrl+,      Layout/part settings
