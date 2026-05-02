@@ -234,12 +234,33 @@ class MediaWidget(QWidget):
         title_html = self._html_escape(title)
         body_html = self._html_escape(body).replace("\n", "<br>")
         footer_html = self._html_escape(footer)
-        html = ""
+        options = dict(self.current_text_options or {})
+        try:
+            font_size = int(options.get("font_size", 42) or 42)
+        except (TypeError, ValueError):
+            font_size = 42
+        text_color = options.get("text_color", "#ffffff")
+        alignment = options.get("alignment", "center")
+        if alignment not in {"left", "center", "right", "justify"}:
+            alignment = "center"
+        box_enabled = bool(options.get("text_box_enabled", False))
+        box_color = options.get("text_box_color", "#000000")
+        body_style = (
+            f"font-size:{font_size}px;line-height:1.22;color:{text_color};"
+            f"text-align:{alignment};font-weight:700;"
+        )
+        if box_enabled:
+            body_style += (
+                f"background-color:{box_color};display:inline-block;"
+                "padding:8px 18px;border-radius:2px;"
+            )
+        html = "<div style='width:100%; text-align:center;'>"
         if title_html:
-            html += f"<div style='font-size:32px;font-weight:700;margin-bottom:22px;'>{title_html}</div>"
-        html += f"<div style='font-size:42px;line-height:1.22;'>{body_html}</div>"
+            html += f"<div style='font-size:32px;font-weight:700;margin-bottom:22px;color:{text_color};'>{title_html}</div>"
+        html += f"<div style='{body_style}'>{body_html}</div>"
         if footer_html:
             html += f"<div style='font-size:22px;margin-top:26px;color:#dddddd;'>{footer_html}</div>"
+        html += "</div>"
         self.text_label.setText(html)
 
     def apply_text_case(self, text, include_reference=False):

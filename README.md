@@ -53,6 +53,34 @@ ScreenChurchData/
 └── backups/
 ```
 
+
+### 1.1. Estrutura dos arquivos do código
+
+A interface foi reorganizada para reduzir o acoplamento do arquivo principal. O arquivo `main_window.py` agora concentra a montagem geral da janela e delega módulos específicos para arquivos separados:
+
+```text
+app.py                         inicializa o QApplication
+screenChurch.py                ponto de entrada do programa
+main_window.py                 janela principal e fluxo geral da interface
+bible_dialogs.py               janela da Bíblia e busca rápida sequencial
+bible_library.py               importação, normalização e busca bíblica
+song_dialogs.py                pesquisa online e editor visual de músicas
+song_library.py                biblioteca, importação e projeção de músicas
+data_storage.py                ScreenChurchData, SQLite, backups e indexação
+media_widget.py                componente de imagem/vídeo/texto por painel
+projection_window.py           janela real de projeção
+projection_settings_dialog.py  configuração de partes/layouts
+preview_dialog.py              pré-visualização simples
+constants.py                   constantes globais
+```
+
+Essa separação facilita manutenção, testes manuais e novos updates sem concentrar todos os recursos em um único arquivo.
+
+
+#### Correção pós-refatoração
+
+Após a separação dos módulos, foram revisados os imports entre `song_library.py`, `song_dialogs.py`, `bible_library.py`, `bible_dialogs.py` e `data_storage.py`. Os botões **Nova música**, **Editar música** e **Pesquisar músicas online** dependem desses módulos e agora possuem os imports explícitos necessários para evitar encerramento abrupto da aplicação.
+
 ### 2. O que vai para SQLite e o que vai para pastas
 
 O banco local fica em:
@@ -139,6 +167,9 @@ Na edição de músicas:
 
 - a letra é digitada ou colada em texto puro;
 - uma linha em branco cria um novo slide;
+- a janela de edição mostra dados, letra e prévias visuais na mesma tela;
+- os botões superiores ajustam caixa alta/baixa, alinhamento, tamanho da fonte, cor da letra e caixa de texto;
+- as prévias dos slides são atualizadas em tempo real;
 - cada música pode ter fundo padrão com imagem ou vídeo;
 - cada slide pode ter fundo próprio com imagem ou vídeo.
 
@@ -413,6 +444,9 @@ In the song editor:
 
 - lyrics are typed or pasted as plain text;
 - a blank line creates a new slide;
+- the editor window shows metadata, lyrics and visual slide previews in the same screen;
+- top toolbar buttons adjust text case, alignment, font size, text color and text box display;
+- slide previews update in real time;
 - each song may have a default image or video background;
 - each slide may have its own image or video background.
 
