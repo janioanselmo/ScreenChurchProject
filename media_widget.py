@@ -424,28 +424,80 @@ class MediaWidget(QWidget):
             return self.vlc_video_widget
         return self.video_widget
 
-    def attach_video_output_to_widget(self, output_widget):
-        """Attach this widget's single video player to another video surface.
+    def attach_video_output_to_widget(self, output_widget, refresh=True):
+        """Attach the single video player to another video surface.
 
-        This is used by the projection window in mirror mode: the operator
-        preview player remains the only player/audio source, while its video
-        output is redirected to the projection surface.
+        The preview player remains the only media player/audio source. On
+        Windows, VLC may keep rendering a black surface after ``set_hwnd`` when
+        the player is already running. The optional refresh below performs a
+        tiny pause/play rebind without stopping the media, changing the audio
+        ownership, or resetting the position.
         """
         if self.current_type != "video":
             return
-        if self.current_backend == "vlc" and self.vlc_player:
-            self._attach_vlc_to_widget(output_widget)
+        if output_widget is None:
             return
+
+        output_widget.setUpdatesEnabled(True)
+        output_widget.show()
+        output_widget.raise_()
+        output_widget.repaint()
+
+        if self.current_backend == "vlc" and self.vlc_player:
+            snapshot = self.video_playback_snapshot()
+            self._attach_vlc_to_widget(output_widget)
+            if refresh:
+                self._refresh_vlc_surface(snapshot)
+            return
+
         self.media_player.setVideoOutput(output_widget)
 
-    def attach_video_output_to_own_widget(self):
+    def _refresh_vlc_surface(self, snapshot):
+        """Refresh VLC rendering after moving the native video surface."""
+        if self.current_backend != "vlc" or not self.vlc_player:
+            return
+
+        snapshot = snapshot or self.video_playback_snapshot()
+        try:
+            position = max(0, int(snapshot.get("position_ms", 0) or 0))
+        except (TypeError, ValueError):
+            position = 0
+
+        was_playing = bool(snapshot.get("is_playing", False))
+        was_paused = bool(snapshot.get("is_paused", False))
+
+        def restore_position():
+            if self.current_type == "video" and self.vlc_player:
+                self.vlc_player.set_time(position)
+
+        def resume_if_needed():
+            if self.current_type != "video" or not self.vlc_player:
+                return
+            self.vlc_player.set_time(position)
+            if was_playing:
+                self.vlc_player.play()
+            elif was_paused or position > 0:
+                self.vlc_player.pause()
+            self.update_overlay_text()
+
+        if was_playing:
+            # VLC/Windows often needs a real pause/play cycle after changing
+            # hwnd. This is not a second player and does not mute anything.
+            self.vlc_player.pause()
+            QTimer.singleShot(35, restore_position)
+            QTimer.singleShot(70, resume_if_needed)
+            return
+
+        QTimer.singleShot(35, resume_if_needed)
+
+    def attach_video_output_to_own_widget(self, refresh=True):
         """Restore video rendering to this preview panel."""
         if self.current_type != "video":
             return
         if self.current_backend == "vlc":
             self._video_output_widget = self.vlc_video_widget
-            self._attach_vlc_to_widget(self.vlc_video_widget)
             self.stacked.setCurrentWidget(self.vlc_video_widget)
+            self.attach_video_output_to_widget(self.vlc_video_widget, refresh=refresh)
             return
         self.media_player.setVideoOutput(self.video_widget)
         self.stacked.setCurrentWidget(self.video_widget)

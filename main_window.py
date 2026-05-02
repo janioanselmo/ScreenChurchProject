@@ -1026,12 +1026,7 @@ class MainWindow(
                     if source.current_backend == "vlc"
                     else target.video_widget
                 )
-                source.attach_video_output_to_widget(output_widget)
-                # Some VLC backends need a short refresh after changing the
-                # native video surface. Reapplying the same snapshot prevents
-                # a dark surface without creating a second player or changing
-                # audio ownership.
-                QTimer.singleShot(80, partial(source.apply_video_playback_snapshot, snapshot))
+                source.attach_video_output_to_widget(output_widget, refresh=True)
                 descriptor["playback"] = snapshot
             else:
                 # Non-video content can be copied safely because it has no audio.
@@ -1070,8 +1065,8 @@ class MainWindow(
         for media_widget in self.media_widgets:
             if media_widget.current_type == "video":
                 snapshot = media_widget.video_playback_snapshot()
-                media_widget.attach_video_output_to_own_widget()
-                QTimer.singleShot(80, partial(media_widget.apply_video_playback_snapshot, snapshot))
+                media_widget.attach_video_output_to_own_widget(refresh=True)
+                QTimer.singleShot(120, partial(media_widget.apply_video_playback_snapshot, snapshot))
 
     def sync_preview_audio(self):
         """Backward-compatible no-op.
@@ -1163,9 +1158,8 @@ class MainWindow(
 
     def build_panel(self, index, media_widget):
         group = QGroupBox(f"Parte {index + 1}")
-        group.setCheckable(True)
-        group.setChecked(False)
-        group.toggled.connect(partial(self.select_panel_from_group, index))
+        group.setCheckable(False)
+        group.mousePressEvent = self.make_panel_mouse_press_handler(group, index)
         layout = QVBoxLayout(group)
         layout.addWidget(media_widget)
 
@@ -1232,19 +1226,22 @@ class MainWindow(
         self.refresh_panel_status(index)
         return group
 
-    def select_panel_from_group(self, index, checked):
-        if checked:
+    def make_panel_mouse_press_handler(self, group, index):
+        """Return a mouse handler that selects a panel without a checkbox."""
+        original_handler = group.mousePressEvent
+
+        def handler(event):
             self.select_panel(index)
+            original_handler(event)
+
+        return handler
 
     def select_panel(self, index, _checked=False):
         if index < 0 or index >= len(self.media_widgets):
             return
         self.selected_panel_index = index
         for i, group in enumerate(self.panel_containers):
-            group.blockSignals(True)
-            group.setChecked(i == index)
             group.setTitle(f"Parte {i + 1}" + ("  [destino]" if i == index else ""))
-            group.blockSignals(False)
         if hasattr(self, "target_panel_combo"):
             self.target_panel_combo.blockSignals(True)
             if 0 <= index < self.target_panel_combo.count():

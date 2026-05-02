@@ -882,3 +882,40 @@ Expected behavior:
 5. The projector shows the same video at the same instant, with no new playback and no duplicated audio.
 
 Note: during video projection, the real player belongs to the Preview. Play/Pause/Stop controls remain in the operator area.
+
+
+## v41 — Fluxo de projeção limpo
+
+- O botão **Projetar** espelha todas as partes configuradas.
+- Os checkboxes individuais de cada parte foram removidos.
+- O controle individual que permanece em cada parte é apenas o **Blackout**.
+- Para ocultar uma parte específica durante a projeção, use o botão de blackout daquela parte.
+- A seleção da parte continua disponível ao clicar no card ou pelos seletores de destino dos módulos.
+
+---
+
+## v41 — Clean projection flow
+
+- The **Project** button mirrors all configured parts.
+- Individual per-part projection checkboxes were removed.
+- The only per-part visibility control that remains is **Blackout**.
+- To hide a specific part during projection, use that part's blackout button.
+- Part selection is still available by clicking the card or using each module's target selector.
+
+---
+
+## v42 - Correção de superfície VLC ao projetar
+
+- Mantém a arquitetura de player único: o Preview continua sendo o player real de áudio e vídeo.
+- Corrige o caso em que o áudio tocava, mas a projeção ficava preta até o usuário pressionar Stop/Play.
+- Ao alternar a saída visual do Preview para a projeção, o sistema faz um pequeno refresh interno da superfície VLC sem criar outro player, sem mutar e sem reiniciar o vídeo.
+- O botão Projetar continua espelhando todas as partes configuradas.
+- O Blackout por parte continua sendo o controle individual de visibilidade.
+
+## v42 - VLC surface refresh when projecting
+
+- Keeps the single-player architecture: Preview remains the real audio/video player.
+- Fixes the case where audio kept playing but the projected output stayed black until Stop/Play was pressed.
+- When moving the visual output from Preview to Projection, the app performs a small internal VLC surface refresh without creating another player, muting, or restarting the video.
+- The Project button continues to mirror all configured parts.
+- Per-part Blackout remains the individual visibility control.
