@@ -1,420 +1,520 @@
-# ScreenChurchProject
+# ScreenChurch Project
+
+Software de projeção para igrejas feito em **Python + PyQt5 + VLC**, com layouts dinâmicos, partes configuráveis, mídia por parte, letras, Bíblia importável por JSON, temas e fluxo seguro **Prévia → Ao vivo**.
+
+---
 
 ## PT-BR
 
-Aplicativo desktop em Python para projeção de imagens e vídeos em uma ou mais partes de uma saída de telão. O projeto foi pensado para operação em igrejas, cultos, eventos e ambientes com telão dividido em faixas ou áreas independentes.
+### 1. Arquitetura de armazenamento
 
-## Visão Geral
+A partir desta versão, os dados do ScreenChurch ficam separados do código do programa em uma pasta local chamada **ScreenChurchData**.
 
-O projeto usa **PyQt5** para criar uma janela de controle e uma janela de projeção no monitor/projetor escolhido. A projeção não fica mais limitada a três partes fixas: o operador pode iniciar com uma parte e adicionar novas partes com o botão `+ Parte`, respeitando a área máxima da saída selecionada.
+Nesta entrega, o ZIP já vem com uma pasta **ScreenChurchData/** ao lado dos arquivos `.py`. Quando essa pasta existe, o programa usa essa pasta em modo portátil. Assim, basta colocar seus arquivos dentro dela e abrir o ScreenChurch.
 
-Cada parte pode receber **imagem ou vídeo**. O software detecta o tipo de mídia importada e libera os controles adequados: imagens usam exibição estática/lista; vídeos liberam Play, Pause, Stop, avanço, retrocesso e barra de posição.
-
-## Funcionalidades
-
-- Interface desktop com PyQt5.
-- Uma ou mais partes de projeção, criadas dinamicamente.
-- Botão `+ Parte` para adicionar novas áreas de telão.
-- Botão `- Parte` para remover a última área.
-- Cada parte pode carregar imagem ou vídeo.
-- Detecção automática do tipo de mídia.
-- Controles de vídeo liberados somente quando a parte contém vídeo.
-- Controles básicos de vídeo: Play, Pause, Stop, `-10s`, `+10s` e barra de progresso.
-- Lista independente de mídias por parte.
-- Histórico recente por parte.
-- Pré-visualização antes de enviar a mídia para a parte.
-- Tela preta rápida para ocultar a projeção.
-- Loop de vídeo e avanço automático em listas de imagens.
-- Seleção de monitor/projetor.
-- Trava de dimensão: a soma das larguras das partes não pode ultrapassar a largura da saída selecionada.
-- Trava de altura: nenhuma parte pode ultrapassar a altura da saída selecionada.
-- Importação e exportação de configurações em JSON.
-- Presets de layout de telão com quantidade de partes e dimensões.
-- Importação/exportação JSON de sessão completa, incluindo listas e mídias recentes.
-- Modo de operação para ocultar controles durante o uso.
-- Atalhos de teclado para operação ao vivo.
-- Build para Windows com PyInstaller.
-
-## Fluxo de Uso
-
-1. Selecione o monitor/projetor de saída.
-2. Use `+ Parte` se precisar dividir o telão em mais áreas.
-3. Clique em `Ajustes` para configurar largura e altura de cada parte.
-4. O software valida se a soma das larguras cabe na saída selecionada.
-5. Clique em `Selecionar mídia` em cada parte.
-6. Use os controles adequados conforme a mídia:
-   - imagem: exibição/lista/anterior/próxima;
-   - vídeo: Play, Pause, Stop, avanço, retrocesso e barra de progresso.
-7. Clique em `Projetar` para abrir a saída no monitor escolhido.
-
-
-## Presets de Layout de Projeção
-
-O software possui uma lista local de **layouts de projeção**. Esses layouts salvam apenas a estrutura do telão, sem depender das mídias carregadas.
-
-Cada layout salva:
-
-- nome do layout;
-- resolução de referência da saída;
-- quantidade de partes;
-- largura e altura de cada parte.
-
-Na barra superior existem os controles:
-
-- `Layout`: lista de layouts disponíveis;
-- `Aplicar layout`: aplica o layout selecionado;
-- `Salvar layout`: salva o layout atual com um nome;
-- `Excluir layout`: remove o layout selecionado.
-
-Os layouts locais ficam no arquivo:
+Se a pasta portátil não existir, no Windows ela será criada em:
 
 ```text
-projection_layout_presets.json
+Documentos/ScreenChurchData
 ```
 
-O programa cria automaticamente três layouts iniciais:
+Também é possível apontar para outro local usando a variável de ambiente:
 
-- `Full HD - 1 parte`: 1920 × 1080;
-- `Full HD - 2 partes iguais`: 960 × 1080 + 960 × 1080;
-- `Full HD - 3 partes iguais`: 640 × 1080 + 640 × 1080 + 640 × 1080.
+```text
+SCREENCHURCH_DATA_DIR
+```
 
-Antes de aplicar um layout, o software valida a saída selecionada. A soma das larguras das partes não pode ultrapassar a largura da saída, e a altura máxima das partes não pode ultrapassar a altura da saída.
+Estrutura criada automaticamente. A pasta `examples/` contém apenas exemplos e não é importada automaticamente:
 
-### Exemplo de arquivo `projection_layout_presets.json`
+```text
+ScreenChurchData/
+├── examples/
+├── config/
+│   └── projection_layout_presets.json
+├── database/
+│   └── screenchurch.db
+├── bibles/
+│   └── *.json
+├── songs/
+│   └── exports/
+├── themes/
+│   └── *.json
+├── media/
+│   ├── images/
+│   ├── videos/
+│   └── backgrounds/
+│       ├── images/
+│       └── videos/
+├── services/
+├── exports/
+│   ├── presets/
+│   ├── songs/
+│   └── services/
+└── backups/
+```
+
+### 2. O que vai para SQLite e o que vai para pastas
+
+O banco local fica em:
+
+```text
+ScreenChurchData/database/screenchurch.db
+```
+
+Ele armazena:
+
+- biblioteca de mídias;
+- músicas e slides;
+- índice das Bíblias importadas;
+- base para configurações futuras.
+
+Arquivos grandes continuam em pastas:
+
+- vídeos em `media/videos/`;
+- imagens em `media/images/`;
+- fundos em `media/backgrounds/images/` e `media/backgrounds/videos/`;
+- Bíblias JSON em `bibles/`;
+- cultos salvos em `services/`;
+- temas em `themes/`.
+
+Os caminhos são salvos de forma relativa à pasta **ScreenChurchData** sempre que possível. Isso facilita copiar a pasta inteira para outro computador sem quebrar os vínculos.
+
+### 3. Bíblia em JSON
+
+O importador aceita o formato JSON usado pelo projeto **damarals/biblias**, que disponibiliza Bíblias em português em USX, SQLite e JSON. O formato JSON é tratado como lista de livros com abreviação e capítulos, por exemplo:
+
+```json
+[
+  {
+    "abbrev": "gn",
+    "chapters": [
+      ["No princípio criou Deus os céus e a terra."]
+    ]
+  }
+]
+```
+
+Também continua aceitando o formato nativo do ScreenChurch:
 
 ```json
 {
-  "schema_version": 2,
-  "type": "screen_church_layout_presets",
-  "presets": [
+  "version": "ACF",
+  "books": [
     {
-      "name": "Full HD - 3 partes iguais",
-      "output": {
-        "width": 1920,
-        "height": 1080
-      },
-      "panels": [
-        {"width": 640, "height": 1080},
-        {"width": 640, "height": 1080},
-        {"width": 640, "height": 1080}
+      "name": "Gênesis",
+      "chapters": [
+        {
+          "number": 1,
+          "verses": [
+            {"number": 1, "text": "No princípio criou Deus os céus e a terra."}
+          ]
+        }
       ]
     }
   ]
 }
 ```
 
-## Exemplo de divisão Full HD
-
-Para uma saída **1920 × 1080 px** dividida em três partes iguais:
-
-| Parte | Largura | Altura |
-| --- | ---: | ---: |
-| Parte 1 | 640 px | 1080 px |
-| Parte 2 | 640 px | 1080 px |
-| Parte 3 | 640 px | 1080 px |
-
-A soma das larguras é:
+Você pode simplesmente copiar os arquivos `.json` para:
 
 ```text
-640 + 640 + 640 = 1920 px
+ScreenChurchData/bibles/
 ```
 
-Portanto, a configuração é válida para uma saída 1920 × 1080.
+e depois usar **Arquivo > Atualizar biblioteca**. Ao importar pelo menu, o arquivo também é copiado para essa pasta.
 
-## Estrutura
+Observação: traduções bíblicas podem ter direitos autorais. O ScreenChurch fornece o importador; cada igreja deve usar versões autorizadas.
 
-| Arquivo | Descrição |
-| --- | --- |
-| `screenChurch.py` | Ponto de entrada da aplicação |
-| `app.py` | Bootstrap do `QApplication` |
-| `main_window.py` | Janela principal, partes dinâmicas, controles, atalhos, monitores, listas, JSON e sessão |
-| `media_widget.py` | Componente reutilizável para imagem e vídeo |
-| `preview_dialog.py` | Pré-visualização antes de enviar a mídia |
-| `projection_window.py` | Janela de projeção na saída selecionada |
-| `projection_settings_dialog.py` | Configuração dinâmica das partes e validação contra a saída |
-| `constants.py` | Constantes, extensões, textos, limites e versão do JSON |
-| `build_windows.ps1` | Script base para gerar executável Windows com PyInstaller |
-| `requirements.txt` | Dependências Python do projeto |
-| `LICENSE` | Licença do repositório |
-| `.gitignore` | Regras de arquivos ignorados pelo Git |
+### 4. Temas, fundos e músicas
 
-## Instalação
+Coloque letras `.txt` ou pacotes `.json` de músicas em:
 
-```powershell
+```text
+ScreenChurchData/songs/
+```
+
+Depois use **Arquivo > Atualizar biblioteca**. O programa lê os arquivos, importa para o SQLite e preserva as edições feitas dentro do app.
+
+Na edição de músicas:
+
+- a letra é digitada ou colada em texto puro;
+- uma linha em branco cria um novo slide;
+- cada música pode ter fundo padrão com imagem ou vídeo;
+- cada slide pode ter fundo próprio com imagem ou vídeo.
+
+Você pode colocar fundos diretamente em:
+
+```text
+ScreenChurchData/media/backgrounds/images/
+ScreenChurchData/media/backgrounds/videos/
+```
+
+e usar **Arquivo > Atualizar biblioteca**. Quando você escolhe uma imagem ou vídeo de fora da pasta de dados, o arquivo é copiado para essas mesmas pastas.
+
+Mídias comuns podem ser colocadas diretamente ou adicionadas pela aba Mídias:
+
+```text
+ScreenChurchData/media/images/
+ScreenChurchData/media/videos/
+```
+
+
+### 5. Pesquisa online de músicas
+
+O menu **Letras → Pesquisar músicas online...** e o botão **🌐** da aba Letras abrem uma janela de pesquisa assistida.
+
+Fluxo recomendado:
+
+```text
+1. Digite título, artista ou trecho.
+2. Marque se deseja buscar por Título, Artista e/ou Letra.
+3. Clique em 🔎 Pesquisar para listar links ou em 🌐 Abrir busca para pesquisar no navegador.
+4. Selecione o resultado; o título/artista são preenchidos automaticamente quando possível.
+5. Duplo clique no resultado abre o link no navegador quando a letra ainda está vazia; se já houver letra colada, abre direto no editor.
+6. Copie a letra autorizada e clique em 📋 Colar área de transferência.
+7. Use 🧩 Formatar slides para separar em 2 ou 4 linhas, se desejar.
+8. Clique em ✏ Abrir em edição para carregar a música no editor completo.
+9. Revise título, artista, letra, slides e fundos; depois salve a música.
+```
+
+O botão **✅ Salvar direto** continua disponível para casos simples. O botão **✏ Abrir em edição** é o fluxo recomendado, pois abre a mesma janela de edição de músicas com o texto puro à esquerda e os slides gerados automaticamente por linhas em branco.
+
+O ScreenChurch **não copia letras automaticamente** de sites de terceiros. A janela foi feita para auxiliar a busca e o cadastro local, mantendo a igreja responsável por usar somente conteúdos próprios, de domínio público ou devidamente licenciados/autorizados.
+
+### 6. Cultos e backups
+
+Os cultos salvos usam `.screenchurch.json` e o local padrão é:
+
+```text
+ScreenChurchData/services/
+```
+
+No menu **Arquivo**, há ações para:
+
+- abrir a pasta de dados;
+- criar backup ZIP da pasta **ScreenChurchData**.
+
+Para preservar o sistema da igreja, faça backup periódico dessa pasta.
+
+### 7. Conceitos de operação
+
+| Conceito | Função |
+|---|---|
+| **Projeção** | Abre ou fecha a janela de saída no monitor/projetor. |
+| **Parte** | Uma divisão da saída: Parte 1, Parte 2, Parte 3 etc. |
+| **Destino** | Parte que receberá mídia, letra, Bíblia ou item do culto. |
+| **Prévia** | Carrega o conteúdo no painel do operador sem exibir no telão. |
+| **Ao vivo** | Conteúdo que está sendo exibido na saída real do telão. |
+
+Fluxo rápido:
+
+```text
+1. Escolha o monitor/projetor.
+2. Escolha ou ajuste o layout.
+3. Em Mídias, Letras, Bíblia ou Culto, escolha o destino no próprio módulo.
+4. Use 👁 para prévia ou 📡 para enviar direto ao vivo.
+```
+
+### 8. Vídeos e codecs
+
+Formatos de imagem:
+
+```text
+.png, .jpg, .jpeg, .bmp, .gif
+```
+
+Formatos de vídeo:
+
+```text
+.mp4, .avi, .mov, .wmv, .mkv, .flv
+```
+
+Formato recomendado:
+
+```text
+MP4 com vídeo H.264 e áudio AAC
+```
+
+A reprodução usa **VLC** como backend principal. Instale o **VLC Media Player 64-bit** no Windows.
+
+### 9. Instalação
+
+```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Execução
+Instale também o **VLC Media Player 64-bit**.
 
-```powershell
+### 10. Execução
+
+```bash
 python screenChurch.py
 ```
 
-## Gerar Executável Windows
+### 11. Build Windows
 
 ```powershell
 .\build_windows.ps1
 ```
 
-## Formatos Suportados
-
-### Imagens
-
-- `.png`
-- `.jpg`
-- `.jpeg`
-- `.bmp`
-- `.gif`
-
-### Vídeos
-
-- `.mp4`
-- `.avi`
-- `.mov`
-- `.wmv`
-- `.mkv`
-- `.flv`
-
-### Observação sobre codecs
-
-O componente de vídeo usa `QMediaPlayer` e `QVideoWidget`. O suporte real a vídeo depende dos codecs disponíveis no sistema operacional.
-
-Formato recomendado para uso em igreja:
+### 11. Atalhos
 
 ```text
-MP4 com vídeo H.264 e áudio AAC
+F5/F11      Iniciar/parar projeção
+Ctrl+B      Abrir Bíblia
+Esc         Blackout geral
+Ctrl+Enter  Enviar parte selecionada ao vivo
+Ctrl+,      Ajustes de layout/partes
+Alt+1..9    Selecionar parte
+Ctrl+S      Salvar culto
+Ctrl+O      Abrir culto
 ```
-
-Outros formatos podem funcionar, mas dependem dos codecs instalados no Windows.
-
-## Atalhos
-
-- `F11`: iniciar/parar projeção.
-- `Esc`: parar projeção.
-- `B`: alternar tela preta.
-- `Ctrl+,`: abrir ajustes de projeção.
-- `Ctrl+1` até `Ctrl+9`: carregar mídia na parte correspondente.
-- `Ctrl+Shift+1` até `Ctrl+Shift+9`: abrir mídia recente da parte correspondente.
-- `Alt+1` até `Alt+9`: limpar a parte correspondente.
-
-## Importação e Exportação JSON
-
-Os presets são exportados como JSON com extensão sugerida:
-
-```text
-.scpreset.json
-```
-
-O JSON salva:
-
-- versão do esquema;
-- monitor selecionado;
-- resolução da saída detectada;
-- estado de projeção;
-- loop;
-- blackout;
-- quantidade de partes;
-- dimensões de cada parte;
-- caminho da mídia atual;
-- tipo de mídia detectado;
-- lista de mídias de cada parte;
-- posição atual da lista;
-- histórico recente.
-
-### Exemplo de preset JSON
-
-```json
-{
-  "schema_version": 2,
-  "screen_index": 1,
-  "output": {
-    "width": 1920,
-    "height": 1080
-  },
-  "fullscreen": false,
-  "operation_mode": false,
-  "blackout": false,
-  "loop": true,
-  "panel_count": 3,
-  "panels": [
-    {
-      "index": 1,
-      "path": "C:/midias/lateral-esquerda.mp4",
-      "media_type": "video",
-      "width": 640,
-      "height": 1080,
-      "playlist": [],
-      "playlist_position": 0,
-      "recent_media": []
-    },
-    {
-      "index": 2,
-      "path": "C:/midias/centro.png",
-      "media_type": "image",
-      "width": 640,
-      "height": 1080,
-      "playlist": [],
-      "playlist_position": 0,
-      "recent_media": []
-    },
-    {
-      "index": 3,
-      "path": "C:/midias/lateral-direita.mp4",
-      "media_type": "video",
-      "width": 640,
-      "height": 1080,
-      "playlist": [],
-      "playlist_position": 0,
-      "recent_media": []
-    }
-  ]
-}
-```
-
-## Notas Técnicas
-
-- O projeto depende de `PyQt5>=5.15,<5.16`.
-- O empacotamento para Windows usa `PyInstaller`.
-- A reprodução de vídeo usa `QMediaPlayer` e `QVideoWidget`.
-- A janela de projeção abre sem bordas no canto superior esquerdo da tela selecionada.
-- A largura total da projeção é a soma das larguras das partes.
-- A altura total da projeção é a maior altura configurada entre as partes.
-- A configuração só é aplicada/projetada quando respeita a resolução da saída selecionada.
-
-## Licença
-
-Consulte `LICENSE`.
 
 ---
 
-## English
+## EN
 
-Desktop Python application for projecting images and videos into one or more parts of a screen output. It is designed for churches, services, events, and projection systems where the output may be divided into independent areas.
+### 1. Storage architecture
 
-## Overview
+ScreenChurch now stores user data outside the application code in a local folder named **ScreenChurchData**.
 
-The project uses **PyQt5** to create a control window and a projection window on the selected monitor/projector. Projection is no longer limited to three fixed panels: the operator can start with one part and add more using the `+ Parte` button, while respecting the selected output resolution.
+This ZIP already includes a **ScreenChurchData/** folder next to the `.py` files. When this folder exists, the program uses it in portable mode. Put your files there and open ScreenChurch.
 
-Each part can display either an **image or a video**. The software detects the imported media type and enables the proper controls. Image panels use static display/list navigation; video panels enable Play, Pause, Stop, seek backward, seek forward, and the progress bar.
+If the portable folder does not exist, on Windows it is created at:
 
-## Features
+```text
+Documents/ScreenChurchData
+```
 
-- PyQt5 desktop interface.
-- Dynamic projection parts.
-- `+ Parte` button to add new projection areas.
-- `- Parte` button to remove the last area.
-- Each part can load an image or video.
-- Automatic media type detection.
-- Video controls enabled only for video media.
-- Basic video controls: Play, Pause, Stop, `-10s`, `+10s`, and progress bar.
-- Independent media list per part.
-- Recent media history per part.
-- Preview before sending media to a part.
-- Quick blackout.
-- Video loop and automatic image-list advance.
-- Monitor/projector selection.
-- Dimension lock: the sum of part widths cannot exceed the selected output width.
-- Height lock: no part height can exceed the selected output height.
-- JSON import/export for projection presets.
-- Operation mode to hide controls during live use.
-- Keyboard shortcuts for live operation.
+You may override it with the environment variable:
 
-## Recommended Video Format
+```text
+SCREENCHURCH_DATA_DIR
+```
+
+Automatically created structure. The `examples/` folder contains samples only and is not imported automatically:
+
+```text
+ScreenChurchData/
+├── examples/
+├── config/
+│   └── projection_layout_presets.json
+├── database/
+│   └── screenchurch.db
+├── bibles/
+│   └── *.json
+├── songs/
+│   └── exports/
+├── themes/
+│   └── *.json
+├── media/
+│   ├── images/
+│   ├── videos/
+│   └── backgrounds/
+│       ├── images/
+│       └── videos/
+├── services/
+├── exports/
+│   ├── presets/
+│   ├── songs/
+│   └── services/
+└── backups/
+```
+
+### 2. SQLite and file folders
+
+The local database is stored at:
+
+```text
+ScreenChurchData/database/screenchurch.db
+```
+
+It stores:
+
+- media library index;
+- songs and slides;
+- imported Bible index;
+- foundation for future configuration data.
+
+Large files remain in folders:
+
+- videos in `media/videos/`;
+- images in `media/images/`;
+- backgrounds in `media/backgrounds/images/` and `media/backgrounds/videos/`;
+- Bible JSON files in `bibles/`;
+- saved services in `services/`;
+- themes in `themes/`.
+
+Paths are stored relative to **ScreenChurchData** whenever possible, making backup and migration easier.
+
+### 3. Bible JSON
+
+The importer supports the JSON format used by **damarals/biblias**, which provides Portuguese Bibles in USX, SQLite and JSON. The JSON format is handled as a list of books with abbreviation and chapters, for example:
+
+```json
+[
+  {
+    "abbrev": "gn",
+    "chapters": [
+      ["In the beginning God created the heavens and the earth."]
+    ]
+  }
+]
+```
+
+The native ScreenChurch format is also supported.
+
+When a Bible is imported, the file is copied to:
+
+```text
+ScreenChurchData/bibles/
+```
+
+Note: Bible translations may be copyrighted. ScreenChurch provides the importer; each church should use authorized versions.
+
+### 4. Themes, backgrounds and songs
+
+Place `.txt` lyrics or `.json` song packages in:
+
+```text
+ScreenChurchData/songs/
+```
+
+Then use **File > Refresh library**. The program reads the files, imports them into SQLite and preserves edits made inside the app.
+
+In the song editor:
+
+- lyrics are typed or pasted as plain text;
+- a blank line creates a new slide;
+- each song may have a default image or video background;
+- each slide may have its own image or video background.
+
+Selected backgrounds are copied to:
+
+```text
+ScreenChurchData/media/backgrounds/images/
+ScreenChurchData/media/backgrounds/videos/
+```
+
+Common media added in the Media tab are copied to:
+
+```text
+ScreenChurchData/media/images/
+ScreenChurchData/media/videos/
+```
+
+
+### 5. Online song search
+
+The **Lyrics → Search songs online...** menu and the **🌐** button in the Lyrics tab open an assisted web-search dialog.
+
+Recommended workflow:
+
+```text
+1. Type the title, artist or a lyric excerpt.
+2. Choose whether to search by Title, Artist and/or Lyrics.
+3. Click 🔎 Search to list links or 🌐 Open search to use the browser.
+4. Select a result; title/artist are filled automatically when possible.
+5. Double-clicking a result opens the link in the browser when the lyrics field is still empty; if lyrics are already pasted, it opens the editor.
+6. Copy authorized lyrics and click 📋 Paste clipboard.
+7. Use 🧩 Format slides to split the text into 2 or 4 lines, if needed.
+8. Click ✏ Open in editor to load the song into the full song editor.
+9. Review title, artist, lyrics, slides and backgrounds; then save the song.
+```
+
+The **✅ Save directly** button remains available for simple cases. The recommended workflow is **✏ Open in editor**, because it opens the same song editor window with plain text on the left and slides generated automatically from blank lines.
+
+ScreenChurch **does not automatically copy lyrics** from third-party websites. The dialog helps with discovery and local registration; each church remains responsible for using only original, public-domain or properly licensed/authorized content.
+
+### 6. Services and backups
+
+Saved services use `.screenchurch.json`, and the default location is:
+
+```text
+ScreenChurchData/services/
+```
+
+The **File** menu includes actions to:
+
+- open the data folder;
+- create a ZIP backup of **ScreenChurchData**.
+
+Back up this folder regularly to preserve the church library.
+
+### 7. Operation concepts
+
+| Concept | Meaning |
+|---|---|
+| **Projection** | Opens or closes the output window on the projector/monitor. |
+| **Part** | One division of the output: Part 1, Part 2, Part 3, etc. |
+| **Target** | The part that will receive media, lyrics, Bible text or service items. |
+| **Preview** | Loads content in the operator panel without showing it on the projector. |
+| **Live** | Content currently shown on the real projection output. |
+
+Fast workflow:
+
+```text
+1. Select the projector/monitor.
+2. Select or adjust the layout.
+3. In Media, Lyrics, Bible or Service, choose the target inside the module.
+4. Use 👁 for preview or 📡 to send directly live.
+```
+
+### 7. Video and codecs
+
+Image formats:
+
+```text
+.png, .jpg, .jpeg, .bmp, .gif
+```
+
+Video formats:
+
+```text
+.mp4, .avi, .mov, .wmv, .mkv, .flv
+```
+
+Recommended format:
 
 ```text
 MP4 with H.264 video and AAC audio
 ```
 
-Other formats may work depending on the codecs installed on the operating system.
+Video playback uses **VLC** as the main backend. Install **VLC Media Player 64-bit** on Windows.
 
-## JSON Import and Export
-
-Preset files use the suggested extension:
-
-```text
-.scpreset.json
-```
-
-They store the schema version, selected output, panel count, panel dimensions, current media paths, detected media type, playlists, and recent media history.
-
-## Run
-
-```powershell
-python screenChurch.py
-```
-
-## License
-
-See `LICENSE`.
-
-
-## Observação importante sobre reprodução de vídeo
-
-O ScreenChurchProject usa `QMediaPlayer` do PyQt5. No Windows, esse recurso
-depende dos codecs instalados no sistema e dos plugins de multimídia do Qt
-incluídos no executável.
-
-Formato recomendado para maior compatibilidade:
-
-```text
-MP4 com vídeo H.264 e áudio AAC
-```
-
-Formatos como AVI, MOV, WMV, MKV e FLV podem funcionar, mas dependem dos
-codecs disponíveis no computador. Se um vídeo não abrir, converta para MP4
-H.264/AAC.
-
-Para gerar o executável, use o `build_windows.ps1` atualizado, pois ele chama o
-`ScreenChurchProject.spec` com coleta explícita dos componentes de multimídia
-do PyQt5.
-
-
-## Reprodução de vídeos: backend VLC recomendado
-
-A partir desta versão, o ScreenChurch tenta usar o **VLC** como backend principal de vídeo quando ele está disponível. Isso aumenta muito a compatibilidade com formatos como:
-
-- `.mp4`
-- `.mov`
-- `.mkv`
-- `.avi`
-- `.wmv`
-- `.flv`
-
-### Instalação recomendada no Windows
-
-1. Instale o **VLC Media Player 64-bit** no Windows.
-2. Instale as dependências do projeto:
+### 9. Installation
 
 ```bash
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-O pacote `python-vlc` já está incluído no `requirements.txt`. Ele permite que o Python controle o VLC dentro da janela do ScreenChurch.
+Also install **VLC Media Player 64-bit**.
 
-Se o VLC não estiver instalado, o software volta automaticamente para o backend `Qt Multimedia`, mas esse backend depende dos codecs do Windows e pode falhar mesmo com arquivos `.mp4`. Por isso, para uso em igreja, recomenda-se fortemente instalar o VLC 64-bit.
+### 10. Run
 
-### Formato mais seguro
-
-Mesmo com VLC, o formato mais recomendado continua sendo:
-
-```text
-MP4 com vídeo H.264 e áudio AAC
+```bash
+python screenChurch.py
 ```
 
-### Como identificar o backend usado
+### 11. Windows build
 
-No rodapé do painel, o software mostra:
-
-```text
-VLC
+```powershell
+.\build_windows.ps1
 ```
 
-ou
+### 11. Shortcuts
 
 ```text
-QT
+F5/F11      Start/stop projection
+Ctrl+B      Open Bible
+Esc         Global blackout
+Ctrl+Enter  Send selected part live
+Ctrl+,      Layout/part settings
+Alt+1..9    Select part
+Ctrl+S      Save service
+Ctrl+O      Open service
 ```
-
-Quando aparecer `VLC`, a reprodução está usando o backend mais compatível.

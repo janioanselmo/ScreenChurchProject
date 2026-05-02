@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "songs": [
+    {
+      "title": "Grande é o Senhor",
+      "author": "Ministério Exemplo",
+      "key": "G",
+      "bpm": "72",
+      "sections": [
+        {
+          "name": "Verso 1",
+          "text": "Grande é o Senhor\nE mui digno de louvor"
+        },
+        {
+          "name": "Refrão",
+          "text": "Então minh'alma canta a Ti, Senhor"
+        }
+      ]
+    }
+  ]
+}

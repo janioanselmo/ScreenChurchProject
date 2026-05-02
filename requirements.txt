@@ -1,8 +1,5 @@
-# Interface gráfica
 PyQt5>=5.15.11,<5.16
-
-# Boas práticas para empacotamento/instalação
+python-vlc>=3.0.20123
 setuptools>=70.0
 wheel>=0.43
-PyInstaller
-python-vlc>=3.0.20123
+PyInstaller>=6.0

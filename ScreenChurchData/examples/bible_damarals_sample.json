@@ -1,0 +1,22 @@
+[
+  {
+    "abbrev": "Gn",
+    "chapters": [
+      [
+        "Texto do versículo 1",
+        "Texto do versículo 2"
+      ],
+      [
+        "Texto do capítulo 2, versículo 1"
+      ]
+    ]
+  },
+  {
+    "abbrev": "Jo",
+    "chapters": [
+      [
+        "Texto de João 1:1"
+      ]
+    ]
+  }
+]

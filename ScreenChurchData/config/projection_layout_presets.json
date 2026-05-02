@@ -1,0 +1,78 @@
+{
+  "schema_version": 3,
+  "type": "screen_church_layout_presets",
+  "presets": [
+    {
+      "name": "Full HD - 1 parte",
+      "output": {
+        "width": 1920,
+        "height": 1080
+      },
+      "panels": [
+        {
+          "width": 1920,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "name": "Full HD - 2 partes iguais",
+      "output": {
+        "width": 1920,
+        "height": 1080
+      },
+      "panels": [
+        {
+          "width": 960,
+          "height": 1080
+        },
+        {
+          "width": 960,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "name": "Full HD - 3 partes iguais",
+      "output": {
+        "width": 1920,
+        "height": 1080
+      },
+      "panels": [
+        {
+          "width": 640,
+          "height": 1080
+        },
+        {
+          "width": 640,
+          "height": 1080
+        },
+        {
+          "width": 640,
+          "height": 1080
+        }
+      ]
+    },
+    {
+      "name": "Full HD - centro + laterais",
+      "output": {
+        "width": 1920,
+        "height": 1080
+      },
+      "panels": [
+        {
+          "width": 320,
+          "height": 1080
+        },
+        {
+          "width": 1280,
+          "height": 1080
+        },
+        {
+          "width": 320,
+          "height": 1080
+        }
+      ]
+    }
+  ]
+}

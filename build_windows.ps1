@@ -1,7 +1,11 @@
 $ErrorActionPreference = "Stop"
 
-# Gera o executável usando o arquivo .spec, que inclui os módulos/plugins
-# de multimídia do PyQt5 necessários para reprodução de vídeo.
-.\.venv\Scripts\python.exe -m PyInstaller `
-  --noconfirm `
-  .\ScreenChurchProject.spec
+Write-Host "Installing/updating dependencies..." -ForegroundColor Cyan
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+Write-Host "Building ScreenChurchProject with PyInstaller..." -ForegroundColor Cyan
+pyinstaller --clean ScreenChurchProject.spec
+
+Write-Host "Done. Output folder: dist\ScreenChurchProject" -ForegroundColor Green
+Write-Host "Remember: install VLC Media Player 64-bit on the target Windows machine." -ForegroundColor Yellow
