@@ -81,6 +81,20 @@ Essa separação facilita manutenção, testes manuais e novos updates sem conce
 
 Após a separação dos módulos, foram revisados os imports entre `song_library.py`, `song_dialogs.py`, `bible_library.py`, `bible_dialogs.py` e `data_storage.py`. Os botões **Nova música**, **Editar música** e **Pesquisar músicas online** dependem desses módulos e agora possuem os imports explícitos necessários para evitar encerramento abrupto da aplicação.
 
+
+#### Correção de persistência do editor visual de músicas
+
+O editor visual de músicas salva junto com cada música:
+
+- caixa de texto em normal, maiúsculo ou minúsculo;
+- alinhamento;
+- tamanho e cor da fonte;
+- caixa atrás da letra e sua cor;
+- fundo padrão da música em imagem ou vídeo;
+- fundo individual por slide em imagem ou vídeo.
+
+Essas informações ficam gravadas no SQLite dentro de `ScreenChurchData/database/screenchurch.db` e são carregadas novamente na lista de músicas e na projeção.
+
 ### 2. O que vai para SQLite e o que vai para pastas
 
 O banco local fica em:
@@ -167,6 +181,9 @@ Na edição de músicas:
 
 - a letra é digitada ou colada em texto puro;
 - uma linha em branco cria um novo slide;
+- o primeiro slide é criado automaticamente com o título completo da música e, na segunda linha, o autor/artista;
+- os slides seguintes exibem somente a letra, sem rodapé automático;
+- essa regra vale para música criada manualmente, música editada, importação TXT/JSON e busca online;
 - a janela de edição mostra dados, letra e prévias visuais na mesma tela;
 - os botões superiores ajustam caixa alta/baixa, alinhamento, tamanho da fonte, cor da letra e caixa de texto;
 - as prévias dos slides são atualizadas em tempo real;
@@ -270,7 +287,35 @@ MP4 com vídeo H.264 e áudio AAC
 A reprodução usa **VLC** como backend principal. Instale o **VLC Media Player 64-bit** no Windows.
 
 
-### 9. Busca rápida da Bíblia
+### 9. Estilo visual da Bíblia
+
+A janela da Bíblia usa nomes completos das versões importadas, como **Nova Versão Internacional** e **Almeida Corrigida Fiel**, em vez de mostrar apenas siglas.
+
+Os versículos possuem a mesma lógica visual das letras:
+
+```text
+Aa / AA / aa     caixa normal, maiúscula ou minúscula
+☰ / ≡ / ☷       alinhamento à esquerda, centralizado ou justificado
+A− / A+          diminuir ou aumentar fonte
+🎨               cor da letra
+▣ / ◼            caixa atrás do texto e cor da caixa
+🖼 / 🎞 / 🚫     imagem de fundo, vídeo de fundo ou remover fundo
+```
+
+Essas alterações são aplicadas em tempo real nos versículos bíblicos que já estão na prévia ou ao vivo.
+
+### 10. Prévia reduzida e projeção real
+
+Os painéis da tela principal são apenas uma **prévia reduzida para operação**. O tamanho real da projeção continua sendo definido em **Layout → Ajustes de partes...** e é aplicado somente na janela do telão/projetor.
+
+Exemplo:
+
+```text
+Prévia do operador: menor, apenas para visualização
+Projeção real: 640×1080, 960×1080, 1920×1080 ou outro tamanho configurado
+```
+
+### 11. Busca rápida da Bíblia
 
 A janela de localização da Bíblia agora trabalha em etapas, semelhante ao fluxo de operação do Holyrics:
 
@@ -278,7 +323,7 @@ A janela de localização da Bíblia agora trabalha em etapas, semelhante ao flu
 Livro → Enter → Capítulo → Enter → Versículo → Enter
 ```
 
-Enquanto você digita o livro, o ScreenChurch mostra sugestões como `Josué`, `Joel`, `Jonas`, `João` e `Jó`. Use as setas para alternar a sugestão selecionada e pressione **Enter** para confirmar.
+Enquanto você digita o livro, o ScreenChurch mostra sugestões como `Josué`, `Joel`, `Jonas`, `João` e `Jó`. Para livros numerados, digitar `1`, `2` ou `3` mantém a busca no estágio de livro e lista as opções correspondentes, como `1 Samuel`, `1 Reis`, `1 Crônicas`, `1 Coríntios`, `1 Tessalonicenses`, `1 Timóteo`, `1 Pedro` e `1 João`. Use as setas para alternar a sugestão selecionada e pressione **Enter** para confirmar.
 
 Depois de confirmar o livro, o programa libera apenas capítulos válidos daquele livro. Exemplo: se o livro possuir 21 capítulos, o capítulo `0` e qualquer valor acima de `21` são bloqueados. O mesmo vale para os versículos do capítulo selecionado.
 
@@ -291,7 +336,7 @@ Setas      alternam a sugestão de livro
 Esc        cancela a busca rápida
 ```
 
-### 10. Instalação
+### 12. Instalação
 
 ```bash
 python -m venv .venv
@@ -379,6 +424,20 @@ ScreenChurchData/
 └── backups/
 ```
 
+
+### Visual song editor persistence fix
+
+The visual song editor stores each song with:
+
+- normal, uppercase or lowercase text mode;
+- alignment;
+- font size and color;
+- lyric text box and its color;
+- default song background as image or video;
+- individual slide background as image or video.
+
+These settings are stored in SQLite at `ScreenChurchData/database/screenchurch.db` and are restored in the song list and projection.
+
 ### 2. SQLite and file folders
 
 The local database is stored at:
@@ -444,6 +503,9 @@ In the song editor:
 
 - lyrics are typed or pasted as plain text;
 - a blank line creates a new slide;
+- the first slide is created automatically with the full song title and, on the second line, the author/artist;
+- the following slides show lyrics only, without an automatic footer;
+- this rule applies to manually created songs, edited songs, TXT/JSON imports and online search;
 - the editor window shows metadata, lyrics and visual slide previews in the same screen;
 - top toolbar buttons adjust text case, alignment, font size, text color and text box display;
 - slide previews update in real time;
@@ -545,7 +607,35 @@ MP4 with H.264 video and AAC audio
 Video playback uses **VLC** as the main backend. Install **VLC Media Player 64-bit** on Windows.
 
 
-### 9. Fast Bible search
+### 9. Bible visual style
+
+The Bible window displays full imported version names, such as **Nova Versão Internacional** and **Almeida Corrigida Fiel**, instead of showing only abbreviations.
+
+Bible verses now use the same visual editing concept as lyrics:
+
+```text
+Aa / AA / aa     normal, uppercase or lowercase
+☰ / ≡ / ☷       left, center or justified alignment
+A− / A+          decrease or increase font size
+🎨               text color
+▣ / ◼            text box and text box color
+🖼 / 🎞 / 🚫     image background, video background or clear background
+```
+
+These changes are applied in real time to Bible verses already loaded in preview or live output.
+
+### 10. Reduced preview and real projection size
+
+The panels in the main window are only a **reduced operator preview**. The real projection size remains defined in **Layout → Ajustes de partes...** and is applied only to the projector/output window.
+
+Example:
+
+```text
+Operator preview: smaller, only for visual monitoring
+Real projection: 640×1080, 960×1080, 1920×1080 or any configured size
+```
+
+### 11. Fast Bible search
 
 The Bible locator now works step by step, similar to a church presentation workflow:
 
@@ -553,7 +643,7 @@ The Bible locator now works step by step, similar to a church presentation workf
 Book → Enter → Chapter → Enter → Verse → Enter
 ```
 
-While you type the book, ScreenChurch shows suggestions such as `Josué`, `Joel`, `Jonas`, `João` and `Jó`. Use the arrow keys to change the selected suggestion and press **Enter** to confirm.
+While you type the book, ScreenChurch shows suggestions such as `Josué`, `Joel`, `Jonas`, `João` and `Jó`. For numbered books, typing `1`, `2` or `3` keeps the dialog in the book stage and lists matching options such as `1 Samuel`, `1 Reis`, `1 Crônicas`, `1 Coríntios`, `1 Tessalonicenses`, `1 Timóteo`, `1 Pedro` and `1 João`. Use the arrow keys to change the selected suggestion and press **Enter** to confirm.
 
 After the book is confirmed, only valid chapters for that book are accepted. Example: if the book has 21 chapters, chapter `0` and any value above `21` are blocked. The same validation is applied to verses in the selected chapter.
 
@@ -566,7 +656,7 @@ Arrows     switch selected book suggestion
 Esc        cancel fast search
 ```
 
-### 10. Installation
+### 12. Installation
 
 ```bash
 python -m venv .venv

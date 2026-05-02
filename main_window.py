@@ -49,6 +49,8 @@ from constants import (
     DEFAULT_WINDOW_HEIGHT,
     DEFAULT_WINDOW_WIDTH,
     FIRST_RUN_HELP_TEXT,
+    PREVIEW_PANEL_MAX_HEIGHT,
+    PREVIEW_PANEL_MAX_WIDTH,
     IMAGE_EXTENSIONS,
     IMAGE_SLIDE_INTERVAL_MS,
     LAYOUT_PRESETS_FILENAME,
@@ -99,6 +101,7 @@ class MainWindow(
         self.service_items = []
         self.layout_presets = []
         self.live_descriptors = []
+        self.output_panel_sizes = []
         self.last_media_error_message = ""
         self.selected_panel_index = 0
         self.is_operation_mode = False
@@ -818,6 +821,17 @@ class MainWindow(
                 else:
                     media_widget.pause()
 
+    def preview_size_for_output(self, width, height):
+        """Return a reduced operator-preview size for a real projection panel."""
+        width = max(1, int(width or DEFAULT_PANEL_WIDTH))
+        height = max(1, int(height or DEFAULT_PANEL_HEIGHT))
+        scale = min(
+            PREVIEW_PANEL_MAX_WIDTH / width,
+            PREVIEW_PANEL_MAX_HEIGHT / height,
+            1.0,
+        )
+        return max(80, int(width * scale)), max(80, int(height * scale))
+
     # ------------------------------------------------------------------
     # Dynamic panels and media cards
     # ------------------------------------------------------------------
@@ -826,11 +840,12 @@ class MainWindow(
             self.show_status_message(f"Limite de {MAX_PANEL_COUNT} partes atingido.", 5000)
             return
         index = len(self.media_widgets)
+        output_width = int((panel_data or {}).get("width", DEFAULT_PANEL_WIDTH))
+        output_height = int((panel_data or {}).get("height", DEFAULT_PANEL_HEIGHT))
+        self.output_panel_sizes.append((output_width, output_height))
         media_widget = MediaWidget(index + 1)
-        media_widget.set_panel_size(
-            int((panel_data or {}).get("width", DEFAULT_PANEL_WIDTH)),
-            int((panel_data or {}).get("height", DEFAULT_PANEL_HEIGHT)),
-        )
+        preview_width, preview_height = self.preview_size_for_output(output_width, output_height)
+        media_widget.set_panel_size(preview_width, preview_height)
         media_widget.set_loop_enabled(self.loop_checkbox.isChecked())
         media_widget.set_muted(self.is_projection_active())
         media_widget.statusChanged.connect(partial(self.refresh_panel_status, index))
@@ -869,6 +884,8 @@ class MainWindow(
         self.video_control_sets.pop()
         self.part_blackout_buttons.pop()
         self.live_descriptors.pop()
+        if self.output_panel_sizes:
+            self.output_panel_sizes.pop()
         self.projection_window.set_panel_count(len(self.media_widgets))
         self.renumber_panels()
         self.refresh_target_panel_combo()
@@ -1149,7 +1166,10 @@ class MainWindow(
     # Layout presets and dimensions
     # ------------------------------------------------------------------
     def panel_sizes(self):
-        return [(w.panel_width, w.panel_height) for w in self.media_widgets]
+        """Return the real projection/output sizes, not the reduced preview sizes."""
+        if len(self.output_panel_sizes) == len(self.media_widgets):
+            return list(self.output_panel_sizes)
+        return [(DEFAULT_PANEL_WIDTH, DEFAULT_PANEL_HEIGHT) for _ in self.media_widgets]
 
     def apply_panel_sizes(self, panel_sizes):
         if not panel_sizes:
@@ -1160,9 +1180,13 @@ class MainWindow(
             self.add_panel(panel_data={})
         while len(self.media_widgets) > len(panel_sizes):
             self.remove_last_panel()
-        for widget, (width, height) in zip(self.media_widgets, panel_sizes):
-            widget.set_panel_size(width, height)
-        self.projection_window.set_panel_sizes(panel_sizes)
+        self.output_panel_sizes = [(int(width), int(height)) for width, height in panel_sizes]
+        for widget, (width, height) in zip(self.media_widgets, self.output_panel_sizes):
+            preview_width, preview_height = self.preview_size_for_output(width, height)
+            widget.set_panel_size(preview_width, preview_height)
+        self.projection_window.set_panel_sizes(self.output_panel_sizes)
+        for index in range(len(self.media_widgets)):
+            self.refresh_panel_status(index)
         self.refresh_target_panel_combo()
         self.update_global_status()
         self.save_session()
@@ -1709,14 +1733,24 @@ class MainWindow(
         return "Vazio"
 
     def panel_status_text(self, media_widget):
-        size = f"{media_widget.panel_width}×{media_widget.panel_height}"
+        try:
+            index = self.media_widgets.index(media_widget)
+            output_width, output_height = self.panel_sizes()[index]
+        except (ValueError, IndexError):
+            output_width, output_height = media_widget.panel_width, media_widget.panel_height
+        preview_size = f"prévia {media_widget.panel_width}×{media_widget.panel_height}"
+        output_size = f"projeção {output_width}×{output_height}"
         label = media_widget.current_media_label()
         state = media_widget.media_state_text()
         if media_widget.current_type == "video":
             duration = self.format_time(media_widget.duration_ms())
             position = self.format_time(media_widget.position_ms())
-            return f"{size}\n{label}\n{state} | {position}/{duration} | {media_widget.current_backend.capitalize()}"
-        return f"{size}\n{label}\n{state}"
+            return (
+                f"{output_size} | {preview_size}\n"
+                f"{label}\n{state} | {position}/{duration} | "
+                f"{media_widget.current_backend.capitalize()}"
+            )
+        return f"{output_size} | {preview_size}\n{label}\n{state}"
 
     @staticmethod
     def format_time(milliseconds):

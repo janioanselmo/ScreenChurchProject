@@ -44,6 +44,7 @@ class BibleLibraryMixin:
             or self.version_name_from_filename(filename)
             or "Bíblia importada"
         )
+        name = self.readable_bible_version_name(name)
         books = data.get("books", [])
         if not isinstance(books, list):
             return None
@@ -119,6 +120,7 @@ class BibleLibraryMixin:
             )
 
         version_name = self.version_name_from_filename(filename) or "Bíblia damarals"
+        version_name = self.readable_bible_version_name(version_name)
         return {"name": version_name, "books": normalized_books} if normalized_books else None
 
     def normalize_verse_list(self, verses):
@@ -139,13 +141,33 @@ class BibleLibraryMixin:
 
         return normalized_verses
 
-    def version_name_from_filename(self, filename):
-        """Return a readable Bible version name from a JSON filename."""
-        if not filename:
+    def readable_bible_version_name(self, value):
+        """Expand common Bible abbreviations to full names for display."""
+        if not value:
             return ""
 
-        base_name = os.path.splitext(os.path.basename(filename))[0].strip()
-        return base_name.capitalize() if base_name else ""
+        text = str(value).strip()
+        key = os.path.splitext(os.path.basename(text))[0]
+        key = key.lower().replace("-", "_").replace(" ", "_")
+        version_names = {
+            "acf": "Almeida Corrigida Fiel",
+            "ara": "Almeida Revista e Atualizada",
+            "arc": "Almeida Revista e Corrigida",
+            "naa": "Nova Almeida Atualizada",
+            "nvi": "Nova Versão Internacional",
+            "ntlh": "Nova Tradução na Linguagem de Hoje",
+            "kja": "King James Atualizada",
+            "kjv": "King James Version",
+            "aa": "Almeida Revisada Imprensa Bíblica",
+            "almeida": "Almeida",
+        }
+        return version_names.get(key, text.replace("_", " ").title())
+
+    def version_name_from_filename(self, filename):
+        """Return a full readable Bible version name from a JSON filename."""
+        if not filename:
+            return ""
+        return self.readable_bible_version_name(os.path.basename(filename))
 
     def bible_book_name_from_abbrev(self, abbrev):
         """Convert common Portuguese Bible abbreviations to book names."""

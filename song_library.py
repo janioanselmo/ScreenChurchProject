@@ -95,6 +95,23 @@ class SongLibraryMixin:
         blocks = re.split(r"\n\s*\n+", text)
         return [block.strip() for block in blocks if block.strip()]
 
+    def song_title_author_text(self, song):
+        """Return the mandatory first slide text for a song."""
+        title = str(song.get("title", "")).strip()
+        author = str(song.get("author") or song.get("artist") or "").strip()
+        if title and author:
+            return f"{title}\n{author}"
+        return title
+
+    def is_song_title_slide(self, song, section):
+        """Check if a section is the mandatory title/author opening slide."""
+        if not isinstance(section, dict):
+            return False
+        name = str(section.get("name", "")).strip().lower()
+        text = str(section.get("text", "")).strip().lower()
+        expected = self.song_title_author_text(song).strip().lower()
+        return bool(expected and (name == "abertura" or text == expected))
+
     def current_slide_backgrounds(self):
         backgrounds = []
         for row in range(self.song_section_list.count()):
@@ -107,7 +124,16 @@ class SongLibraryMixin:
             return
         backgrounds = self.current_slide_backgrounds()
         current_row = max(self.song_section_list.currentRow(), 0)
-        blocks = self.lyrics_blocks_from_text(self.song_raw_text_edit.toPlainText())
+        title_data = self.current_song_data_for_title()
+        opening_text = self.song_title_author_text(title_data)
+        lyric_blocks = [
+            block for block in self.lyrics_blocks_from_text(self.song_raw_text_edit.toPlainText())
+            if block.strip().lower() != opening_text.strip().lower()
+        ]
+        blocks = []
+        if opening_text:
+            blocks.append(opening_text)
+        blocks.extend(lyric_blocks)
         self.song_section_list.clear()
         for index, block in enumerate(blocks, start=1):
             background = backgrounds[index - 1] if index - 1 < len(backgrounds) else None
@@ -206,13 +232,28 @@ class SongLibraryMixin:
         item.setText(f"Slide {row + 1}\n\n{preview}{bg_marker}")
         item.setToolTip(text)
 
+    def current_song_data_for_title(self):
+        """Small helper with current title/author fields."""
+        return {
+            "title": self.song_title_edit.text().strip(),
+            "artist": self.song_artist_edit.text().strip(),
+            "author": self.song_author_edit.text().strip(),
+        }
+
     def current_song_data_from_form(self):
         self.update_song_slides_from_raw()
-        sections = []
+        lyric_sections = []
         for row in range(self.song_section_list.count()):
             section = dict(self.song_section_list.item(row).data(Qt.UserRole) or {})
-            section["name"] = f"Slide {row + 1}"
-            sections.append(section)
+            if self.is_song_title_slide(self.current_song_data_for_title(), section):
+                continue
+            section["name"] = f"Slide {row + 2}"
+            lyric_sections.append(section)
+        opening_text = self.song_title_author_text(self.current_song_data_for_title())
+        sections = []
+        if opening_text:
+            sections.append({"name": "Abertura", "text": opening_text, "background": None})
+        sections.extend(lyric_sections)
         default_background = None
         if self.song_default_background_path:
             default_background = {
@@ -325,14 +366,6 @@ class SongLibraryMixin:
         section = slide.get("name", "Slide") if isinstance(slide, dict) else "Slide"
         text = slide.get("text", "") if isinstance(slide, dict) else ""
         footer_parts = []
-        if self.song_artist_edit.text().strip():
-            footer_parts.append(self.song_artist_edit.text().strip())
-        if self.song_author_edit.text().strip():
-            footer_parts.append(self.song_author_edit.text().strip())
-        if self.song_key_edit.text().strip():
-            footer_parts.append(f"Tom: {self.song_key_edit.text().strip()}")
-        if self.song_bpm_edit.text().strip():
-            footer_parts.append(f"BPM: {self.song_bpm_edit.text().strip()}")
         background = None
         if isinstance(slide, dict):
             background = slide.get("background")
@@ -384,15 +417,27 @@ class SongLibraryMixin:
             self.refresh_service_list()
 
     def normalize_song_data(self, song):
-        """Return a safe song dictionary used by the lyrics module."""
+        """Return a safe song dictionary used by the lyrics module.
+
+        Rule: every song always starts with an opening slide containing the
+        full title and the author/artist on the second line. The remaining
+        slides contain lyrics only.
+        """
         if not isinstance(song, dict):
             return None
         title = str(song.get("title") or song.get("titulo") or song.get("name") or "").strip()
         if not title:
             return None
+
+        normalized_base = {
+            "title": title,
+            "artist": str(song.get("artist") or song.get("artista") or "").strip(),
+            "author": str(song.get("author") or song.get("autor") or "").strip(),
+        }
         raw_lyrics = str(song.get("lyrics") or song.get("letra") or "").strip()
         raw_sections = song.get("sections") or song.get("slides") or song.get("trechos") or []
-        sections = []
+        lyric_sections = []
+
         if isinstance(raw_sections, list):
             for index, section in enumerate(raw_sections, start=1):
                 background = None
@@ -403,126 +448,61 @@ class SongLibraryMixin:
                 else:
                     name = f"Slide {index}"
                     text = str(section).strip()
-                if text:
-                    sections.append({"name": name or f"Slide {index}", "text": text, "background": background})
+                candidate = {"name": name, "text": text, "background": background}
+                if text and not self.is_song_title_slide(normalized_base, candidate):
+                    lyric_sections.append(candidate)
         elif isinstance(raw_sections, dict):
             for index, (name, text) in enumerate(raw_sections.items(), start=1):
-                if str(text).strip():
-                    sections.append({"name": str(name) or f"Slide {index}", "text": str(text).strip(), "background": None})
-        if not sections and raw_lyrics:
-            sections = [
-                {"name": f"Slide {index}", "text": block, "background": None}
-                for index, block in enumerate(self.lyrics_blocks_from_text(raw_lyrics), start=1)
-            ]
-        if not raw_lyrics and sections:
-            raw_lyrics = "\n\n".join(section.get("text", "") for section in sections)
+                text = str(text).strip()
+                candidate = {"name": str(name) or f"Slide {index}", "text": text, "background": None}
+                if text and not self.is_song_title_slide(normalized_base, candidate):
+                    lyric_sections.append(candidate)
+
+        if raw_lyrics:
+            lyric_sections = [
+                {"name": f"Slide {index + 2}", "text": block, "background": None}
+                for index, block in enumerate(self.lyrics_blocks_from_text(raw_lyrics))
+                if block.strip().lower() != self.song_title_author_text(normalized_base).strip().lower()
+            ] or lyric_sections
+        elif lyric_sections:
+            raw_lyrics = "\n\n".join(section.get("text", "") for section in lyric_sections)
+
+        opening_text = self.song_title_author_text(normalized_base)
+        sections = []
+        if opening_text:
+            sections.append({"name": "Abertura", "text": opening_text, "background": None})
+        for index, section in enumerate(lyric_sections, start=2):
+            sections.append(
+                {
+                    "name": f"Slide {index}",
+                    "text": section.get("text", ""),
+                    "background": section.get("background"),
+                }
+            )
+
+        style = song.get("style") if isinstance(song.get("style"), dict) else {}
+        normalized_style = {
+            "text_case": str(style.get("text_case", "normal") or "normal"),
+            "alignment": str(style.get("alignment", "center") or "center"),
+            "font_size": int(style.get("font_size", 28) or 28),
+            "text_color": str(style.get("text_color", "#ffffff") or "#ffffff"),
+            "text_box_enabled": bool(style.get("text_box_enabled", True)),
+            "text_box_color": str(style.get("text_box_color", "#000000") or "#000000"),
+        }
+
         return {
             "title": title,
-            "artist": str(song.get("artist") or song.get("artista") or "").strip(),
-            "author": str(song.get("author") or song.get("autor") or "").strip(),
+            "artist": normalized_base["artist"],
+            "author": normalized_base["author"],
             "key": str(song.get("key") or song.get("tom") or "").strip(),
             "bpm": str(song.get("bpm") or "").strip(),
             "notes": str(song.get("notes") or song.get("anotacao") or song.get("anotação") or "").strip(),
             "copyright": str(song.get("copyright") or "").strip(),
             "lyrics": raw_lyrics,
             "default_background": song.get("default_background"),
+            "style": normalized_style,
             "sections": sections,
         }
-
-    def parse_song_txt(self, text, default_title="Música importada"):
-        """Parse a plain-text song.
-
-        Metadata lines may appear at the top. After that, blank lines split slides.
-        Bracket labels like [Refrão] are accepted and removed from the slide text.
-        """
-        metadata = {
-            "title": "",
-            "artist": "",
-            "author": "",
-            "key": "",
-            "bpm": "",
-            "notes": "",
-            "copyright": "",
-        }
-        metadata_patterns = {
-            "title": r"^(título|titulo|title|música|musica|song)\s*:\s*(.+)$",
-            "artist": r"^(artista|artist|cantor|banda)\s*:\s*(.+)$",
-            "author": r"^(autor|author|composer|compositor)\s*:\s*(.+)$",
-            "key": r"^(tom|key)\s*:\s*(.+)$",
-            "bpm": r"^(bpm|tempo)\s*:\s*(.+)$",
-            "notes": r"^(anotação|anotacao|notes?)\s*:\s*(.+)$",
-            "copyright": r"^(copyright|direitos)\s*:\s*(.+)$",
-        }
-        body_lines = []
-        reading_body = False
-        for raw_line in text.splitlines():
-            line = raw_line.rstrip()
-            matched_metadata = False
-            if not reading_body:
-                for key, pattern in metadata_patterns.items():
-                    match = re.match(pattern, line, flags=re.IGNORECASE)
-                    if match:
-                        metadata[key] = match.group(2).strip()
-                        matched_metadata = True
-                        break
-            if matched_metadata:
-                continue
-            if line.strip():
-                reading_body = True
-            if reading_body:
-                body_lines.append(line)
-        raw_lyrics = "\n".join(body_lines).strip()
-        cleaned_blocks = []
-        for block in self.lyrics_blocks_from_text(raw_lyrics):
-            lines = block.splitlines()
-            if lines and re.match(r"^\s*\[(.+?)\]\s*$", lines[0]):
-                lines = lines[1:]
-            cleaned = "\n".join(lines).strip()
-            if cleaned:
-                cleaned_blocks.append(cleaned)
-        if not metadata["title"]:
-            metadata["title"] = os.path.splitext(os.path.basename(default_title))[0]
-        song = {
-            **metadata,
-            "lyrics": "\n\n".join(cleaned_blocks),
-            "sections": [
-                {"name": f"Slide {index}", "text": block, "background": None}
-                for index, block in enumerate(cleaned_blocks, start=1)
-            ],
-        }
-        return self.normalize_song_data(song)
-
-    def song_to_txt(self, song):
-        lines = [
-            f"Título: {song.get('title', '')}",
-            f"Artista: {song.get('artist', '')}",
-            f"Autor: {song.get('author', '')}",
-            f"Tom: {song.get('key', '')}",
-            f"BPM: {song.get('bpm', '')}",
-            f"Anotação: {song.get('notes', '')}",
-            f"Copyright: {song.get('copyright', '')}",
-            "",
-        ]
-        lyrics = song.get("lyrics") or "\n\n".join(
-            section.get("text", "") for section in song.get("sections", []) if section.get("text")
-        )
-        lines.append(lyrics.strip())
-        return "\n".join(lines).strip() + "\n"
-
-    def upsert_imported_songs(self, songs):
-        imported = 0
-        for song in songs:
-            normalized = self.normalize_song_data(song)
-            if not normalized:
-                continue
-            self.songs = [s for s in self.songs if s.get("title") != normalized.get("title")]
-            self.songs.append(normalized)
-            imported += 1
-        if imported:
-            self.save_local_libraries()
-            self.refresh_song_list()
-            self.show_status_message(f"{imported} música(s) importada(s).", 5000)
-        return imported
 
     def import_songs_json(self):
         filename, _ = QFileDialog.getOpenFileName(self, "Importar músicas", "", "JSON (*.json)")

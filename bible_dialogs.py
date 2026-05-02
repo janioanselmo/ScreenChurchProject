@@ -3,7 +3,9 @@ import re
 from functools import partial
 
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
+    QColorDialog,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -177,7 +179,7 @@ class BibleQuickSearchDialog(QDialog):
             return
         # If a full reference is pasted/opened, parse it immediately.
         # Single book initials such as "Jo" must stay in the book stage.
-        if any(char.isdigit() for char in text) and self.navigator.try_parse_reference(text):
+        if self.should_parse_as_reference(text) and self.navigator.try_parse_reference(text):
             self.selected_book = self.navigator.current_book
             self.book_text = self.selected_book.get("name", "") if self.selected_book else text
             self.chapter_text = str(self.navigator.current_chapter.get("number", "")) if self.navigator.current_chapter else ""
@@ -186,6 +188,16 @@ class BibleQuickSearchDialog(QDialog):
             return
         self.book_text = text
         self.stage = self.STAGE_BOOK
+
+    def should_parse_as_reference(self, text):
+        """Avoid interpreting numeric book prefixes as complete references."""
+        value = str(text or "").strip()
+        if not value:
+            return False
+        normalized = self.navigator.normalize_text(value.replace(" ", ""))
+        if normalized in {"1", "2", "3"}:
+            return False
+        return bool(re.search(r"\d", value) and re.search(r"[A-Za-zÀ-ÿ]", value))
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -457,6 +469,11 @@ class BibleNavigatorDialog(QDialog):
         self.search_results = []
         self.quick_search_dialog = None
         self.bible_background_path = ""
+        self.bible_font_size = 54
+        self.bible_alignment = "center"
+        self.bible_text_color = "#ffffff"
+        self.bible_text_box_enabled = False
+        self.bible_text_box_color = "#000000"
 
         self.setWindowTitle("Bíblia")
         self.resize(1220, 760)
@@ -489,24 +506,69 @@ class BibleNavigatorDialog(QDialog):
 
         style_row = QHBoxLayout()
         self.bible_case_button = QPushButton()
-        self.bible_case_button.setToolTip("Alternar caixa da projeção bíblica: normal, maiúsculo ou minúsculo")
+        self.bible_case_button.setToolTip(
+            "Alternar caixa da projeção bíblica: normal, maiúsculo ou minúsculo"
+        )
         self.bible_case_button.clicked.connect(self.cycle_bible_text_case)
         self.update_bible_case_button()
-        self.bible_background_combo = QComboBox()
-        self.bible_background_combo.addItem("Sem fundo", "none")
-        self.bible_background_combo.addItem("Imagem", "image")
-        self.bible_background_combo.addItem("Vídeo", "video")
-        self.bible_background_combo.currentIndexChanged.connect(self.handle_background_mode_changed)
-        self.background_button = QPushButton("🖼 Selecionar fundo")
-        self.background_button.setToolTip("Selecionar imagem ou vídeo de fundo para a projeção bíblica")
-        self.background_button.clicked.connect(self.choose_bible_background)
+
+        align_left_button = QPushButton("☰")
+        align_center_button = QPushButton("≡")
+        align_justify_button = QPushButton("☷")
+        font_minus_button = QPushButton("A−")
+        font_plus_button = QPushButton("A+")
+        text_color_button = QPushButton("🎨")
+        box_button = QPushButton("▣")
+        box_color_button = QPushButton("◼")
+        image_bg_button = QPushButton("🖼")
+        video_bg_button = QPushButton("🎞")
+        clear_bg_button = QPushButton("🚫")
+
+        align_left_button.setToolTip("Alinhar versículo à esquerda")
+        align_center_button.setToolTip("Centralizar versículo")
+        align_justify_button.setToolTip("Justificar versículo")
+        font_minus_button.setToolTip("Diminuir fonte da Bíblia")
+        font_plus_button.setToolTip("Aumentar fonte da Bíblia")
+        text_color_button.setToolTip("Escolher cor da letra da Bíblia")
+        box_button.setToolTip("Ativar/desativar caixa atrás do versículo")
+        box_color_button.setToolTip("Escolher cor da caixa de texto")
+        image_bg_button.setToolTip("Escolher imagem de fundo da Bíblia")
+        video_bg_button.setToolTip("Escolher vídeo de fundo da Bíblia")
+        clear_bg_button.setToolTip("Remover fundo da Bíblia")
+
+        align_left_button.clicked.connect(lambda: self.set_bible_alignment("left"))
+        align_center_button.clicked.connect(lambda: self.set_bible_alignment("center"))
+        align_justify_button.clicked.connect(lambda: self.set_bible_alignment("justify"))
+        font_minus_button.clicked.connect(lambda: self.change_bible_font_size(-4))
+        font_plus_button.clicked.connect(lambda: self.change_bible_font_size(4))
+        text_color_button.clicked.connect(self.choose_bible_text_color)
+        box_button.clicked.connect(self.toggle_bible_text_box)
+        box_color_button.clicked.connect(self.choose_bible_box_color)
+        image_bg_button.clicked.connect(lambda: self.choose_bible_background("image"))
+        video_bg_button.clicked.connect(lambda: self.choose_bible_background("video"))
+        clear_bg_button.clicked.connect(self.clear_bible_background)
+
         self.background_label = QLabel("Fundo: padrão escuro")
         self.background_label.setStyleSheet("color: #d7d7d7;")
-        style_row.addWidget(QLabel("Caixa:"))
-        style_row.addWidget(self.bible_case_button)
-        style_row.addWidget(QLabel("Fundo:"))
-        style_row.addWidget(self.bible_background_combo)
-        style_row.addWidget(self.background_button)
+        self.font_size_label = QLabel(f"Fonte: {self.bible_font_size}")
+        self.font_size_label.setStyleSheet("color: #d7d7d7;")
+
+        for button in (
+            self.bible_case_button,
+            align_left_button,
+            align_center_button,
+            align_justify_button,
+            font_minus_button,
+            font_plus_button,
+            text_color_button,
+            box_button,
+            box_color_button,
+            image_bg_button,
+            video_bg_button,
+            clear_bg_button,
+        ):
+            style_row.addWidget(button)
+        style_row.addWidget(self.font_size_label)
         style_row.addWidget(self.background_label, 1)
         root.addLayout(style_row)
 
@@ -584,6 +646,16 @@ class BibleNavigatorDialog(QDialog):
             "QPushButton:hover { background: #5f5f5f; }"
         )
 
+    def should_parse_as_reference(self, text):
+        """Avoid interpreting numeric book prefixes as complete references."""
+        value = str(text or "").strip()
+        if not value:
+            return False
+        normalized = self.navigator.normalize_text(value.replace(" ", ""))
+        if normalized in {"1", "2", "3"}:
+            return False
+        return bool(re.search(r"\d", value) and re.search(r"[A-Za-zÀ-ÿ]", value))
+
     def keyPressEvent(self, event):
         if event.text() and event.text().strip() and not self.search_edit.hasFocus():
             self.open_quick_search(event.text())
@@ -596,8 +668,12 @@ class BibleNavigatorDialog(QDialog):
             self.quick_search_dialog = BibleQuickSearchDialog(self, initial_text)
             self.quick_search_dialog.finished.connect(lambda _code: setattr(self, "quick_search_dialog", None))
         else:
-            self.quick_search_dialog.search_edit.setText(initial_text)
-            self.quick_search_dialog.search_edit.setCursorPosition(len(initial_text))
+            self.quick_search_dialog.book_text = ""
+            self.quick_search_dialog.chapter_text = ""
+            self.quick_search_dialog.verse_text = ""
+            self.quick_search_dialog.stage = BibleQuickSearchDialog.STAGE_BOOK
+            self.quick_search_dialog.apply_initial_text(initial_text)
+            self.quick_search_dialog.update_view()
         self.quick_search_dialog.show()
         self.quick_search_dialog.raise_()
         self.quick_search_dialog.activateWindow()
@@ -782,6 +858,10 @@ class BibleNavigatorDialog(QDialog):
         if not text:
             self.build_book_grid()
             return
+        normalized_text = self.normalize_text(text.replace(" ", ""))
+        if normalized_text in {"1", "2", "3"}:
+            self.build_book_grid(text)
+            return
         if self.try_parse_reference(text):
             return
         if len(text) <= 2:
@@ -824,7 +904,7 @@ class BibleNavigatorDialog(QDialog):
             return None
         raw_query = str(query).strip().lower()
         book_query = self.normalize_text(raw_query.replace(" ", ""))
-        if not book_query:
+        if not book_query or book_query in {"1", "2", "3"}:
             return None
         books = version.get("books", [])
         if book_query == "jo":
@@ -930,27 +1010,57 @@ class BibleNavigatorDialog(QDialog):
             self.bible_case_button.setText(self.main_window.text_case_button_label(mode))
 
     def bible_text_options(self):
-        background_type = self.bible_background_combo.currentData() if hasattr(self, "bible_background_combo") else "none"
-        background_path = self.bible_background_path if background_type in {"image", "video"} else ""
         return {
             "text_case": getattr(self.main_window, "bible_text_case", "normal"),
-            "background_type": background_type or "none",
-            "background_path": background_path or "",
+            "font_size": self.bible_font_size,
+            "alignment": self.bible_alignment,
+            "text_color": self.bible_text_color,
+            "text_box_enabled": self.bible_text_box_enabled,
+            "text_box_color": self.bible_text_box_color,
+            "background_type": self.bible_background_type(),
+            "background_path": self.bible_background_path or "",
         }
 
-    def handle_background_mode_changed(self):
-        mode = self.bible_background_combo.currentData()
-        if mode == "none":
-            self.bible_background_path = ""
-            self.background_label.setText("Fundo: padrão escuro")
-            return
-        if self.bible_background_path:
-            self.background_label.setText(f"Fundo: {os.path.basename(self.bible_background_path)}")
-        else:
-            self.background_label.setText("Selecione um arquivo de fundo")
+    def bible_background_type(self):
+        if not self.bible_background_path:
+            return "none"
+        extension = os.path.splitext(self.bible_background_path)[1].lower()
+        if extension in {".mp4", ".mov", ".mkv", ".avi", ".wmv", ".flv"}:
+            return "video"
+        return "image"
 
-    def choose_bible_background(self):
-        mode = self.bible_background_combo.currentData()
+    def set_bible_alignment(self, alignment):
+        self.bible_alignment = alignment
+        self.apply_bible_style_to_existing()
+
+    def change_bible_font_size(self, delta):
+        self.bible_font_size = max(18, min(120, self.bible_font_size + int(delta)))
+        self.font_size_label.setText(f"Fonte: {self.bible_font_size}")
+        self.apply_bible_style_to_existing()
+
+    def choose_bible_text_color(self):
+        color = QColorDialog.getColor(QColor(self.bible_text_color), self, "Cor da letra")
+        if color.isValid():
+            self.bible_text_color = color.name()
+            self.apply_bible_style_to_existing()
+
+    def toggle_bible_text_box(self):
+        self.bible_text_box_enabled = not self.bible_text_box_enabled
+        self.apply_bible_style_to_existing()
+
+    def choose_bible_box_color(self):
+        color = QColorDialog.getColor(QColor(self.bible_text_box_color), self, "Cor da caixa de texto")
+        if color.isValid():
+            self.bible_text_box_color = color.name()
+            self.bible_text_box_enabled = True
+            self.apply_bible_style_to_existing()
+
+    def clear_bible_background(self):
+        self.bible_background_path = ""
+        self.background_label.setText("Fundo: padrão escuro")
+        self.apply_bible_style_to_existing()
+
+    def choose_bible_background(self, mode):
         if mode == "image":
             file_filter = "Imagens (*.png *.jpg *.jpeg *.bmp *.gif *.webp);;Todos os arquivos (*.*)"
             title = "Selecionar imagem de fundo"
@@ -958,13 +1068,33 @@ class BibleNavigatorDialog(QDialog):
             file_filter = "Vídeos (*.mp4 *.mov *.mkv *.avi *.wmv *.flv);;Todos os arquivos (*.*)"
             title = "Selecionar vídeo de fundo"
         else:
-            QMessageBox.information(self, "Fundo", "Escolha Imagem ou Vídeo antes de selecionar o arquivo.")
             return
         filename, _ = QFileDialog.getOpenFileName(self, title, "", file_filter)
         if filename:
             filename = self.main_window.import_background_file(filename, mode)
             self.bible_background_path = filename
             self.background_label.setText(f"Fundo: {os.path.basename(filename)}")
+            self.apply_bible_style_to_existing()
+
+    def apply_bible_style_to_existing(self):
+        """Apply Bible visual style to current preview/live Bible panels in real time."""
+        options = self.bible_text_options()
+        for widget in list(self.main_window.media_widgets) + list(self.main_window.projection_window.media_widgets):
+            if getattr(widget, "current_type", "") != "text":
+                continue
+            if getattr(widget, "current_text_kind", "") != "bíblia":
+                continue
+            current_options = dict(getattr(widget, "current_text_options", {}) or {})
+            current_options.update(options)
+            widget.update_text_options(current_options)
+
+        for descriptor in self.main_window.live_descriptors:
+            if descriptor.get("type") == "text" and descriptor.get("kind") == "bíblia":
+                current_options = dict(descriptor.get("options", {}) or {})
+                current_options.update(options)
+                descriptor["options"] = current_options
+        self.main_window.save_session()
+        self.main_window.update_global_status()
 
     def target_index(self):
         value = self.target_combo.currentData()

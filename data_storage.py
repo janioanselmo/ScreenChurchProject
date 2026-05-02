@@ -371,7 +371,7 @@ class DataStorageMixin:
                 data = json.load(file)
             version = self.normalize_bible_version(data, filename)
             if version and fallback_name:
-                version["name"] = fallback_name
+                version["name"] = self.readable_bible_version_name(fallback_name)
             return version
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             return None

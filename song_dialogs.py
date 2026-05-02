@@ -801,6 +801,9 @@ class SongEditorDialog(QDialog):
             "Digite ou cole a letra aqui.\n\nLinha em branco = novo slide."
         )
         self.raw_text_edit.textChanged.connect(self._refresh_slides)
+        self.title_edit.textChanged.connect(self._refresh_slides)
+        self.artist_edit.textChanged.connect(self._refresh_slides)
+        self.author_edit.textChanged.connect(self._refresh_slides)
         left_layout.addWidget(QLabel("Letra em texto puro"))
         left_layout.addWidget(self.raw_text_edit, 1)
 
@@ -861,14 +864,46 @@ class SongEditorDialog(QDialog):
         self.bpm_edit.setText(str(song.get("bpm", "")))
         self.notes_edit.setText(str(song.get("notes", "")))
         self.copyright_edit.setText(str(song.get("copyright", "")))
+
+        sections = song.get("sections", []) or []
+        lyric_sections = self._lyric_sections_from_saved_sections(sections)
         raw_text = song.get("lyrics") or "\n\n".join(
-            section.get("text", "") for section in song.get("sections", []) if section.get("text", "")
+            section.get("text", "") for section in lyric_sections if section.get("text", "")
         )
         self.raw_text_edit.setPlainText(raw_text)
+
         self.slide_backgrounds = []
-        for section in song.get("sections", []) or []:
+        for section in sections:
             self.slide_backgrounds.append(section.get("background"))
         self._refresh_background_label()
+
+    def _title_author(self):
+        return self.author_edit.text().strip() or self.artist_edit.text().strip()
+
+    def _title_slide_text(self):
+        title = self.title_edit.text().strip()
+        author = self._title_author()
+        if title and author:
+            return f"{title}\n{author}"
+        return title
+
+    def _is_title_slide_text(self, text):
+        expected = self._title_slide_text().strip().lower()
+        candidate = str(text or "").strip().lower()
+        return bool(expected and candidate == expected)
+
+    def _lyric_sections_from_saved_sections(self, sections):
+        lyric_sections = []
+        for index, section in enumerate(sections or []):
+            text = str(section.get("text", "")).strip() if isinstance(section, dict) else str(section).strip()
+            name = str(section.get("name", "")).strip().lower() if isinstance(section, dict) else ""
+            if index == 0 and (name == "abertura" or self._is_title_slide_text(text)):
+                continue
+            if isinstance(section, dict):
+                lyric_sections.append(section)
+            elif text:
+                lyric_sections.append({"name": f"Slide {index + 1}", "text": text, "background": None})
+        return lyric_sections
 
     def _apply_style_to_controls(self):
         self.font_size_spin.blockSignals(True)
@@ -879,11 +914,20 @@ class SongEditorDialog(QDialog):
         self._refresh_alignment_buttons()
         self._refresh_color_button_styles()
 
-    def _blocks(self):
+    def _lyric_blocks(self):
         text = self.raw_text_edit.toPlainText().replace("\r\n", "\n").replace("\r", "\n").strip()
         if not text:
             return []
-        return [block.strip() for block in re.split(r"\n\s*\n+", text) if block.strip()]
+        blocks = [block.strip() for block in re.split(r"\n\s*\n+", text) if block.strip()]
+        return [block for block in blocks if not self._is_title_slide_text(block)]
+
+    def _blocks(self):
+        title_slide = self._title_slide_text()
+        blocks = []
+        if title_slide:
+            blocks.append(title_slide)
+        blocks.extend(self._lyric_blocks())
+        return blocks
 
     def _current_style(self):
         self.style["font_size"] = int(self.font_size_spin.value())
@@ -1060,7 +1104,8 @@ class SongEditorDialog(QDialog):
         self.slide_list.clear()
         for index, block in enumerate(blocks):
             background = self.slide_backgrounds[index]
-            item = QListWidgetItem(f"Slide {index + 1}")
+            item_name = "Abertura" if index == 0 else f"Slide {index + 1}"
+            item = QListWidgetItem(item_name)
             item.setIcon(QIcon(self._make_slide_pixmap(block, index)))
             marker = "fundo próprio" if isinstance(background, dict) and background.get("path") else "fundo padrão"
             item.setToolTip(f"Slide {index + 1} · {marker}\n\n{block}")
@@ -1136,7 +1181,8 @@ class SongEditorDialog(QDialog):
         sections = []
         for index, block in enumerate(blocks, start=1):
             background = self.slide_backgrounds[index - 1] if index - 1 < len(self.slide_backgrounds) else None
-            sections.append({"name": f"Slide {index}", "text": block, "background": background})
+            name = "Abertura" if index == 1 else f"Slide {index}"
+            sections.append({"name": name, "text": block, "background": background})
         return {
             "title": self.title_edit.text().strip(),
             "artist": self.artist_edit.text().strip(),
