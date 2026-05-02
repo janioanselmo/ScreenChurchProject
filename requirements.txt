@@ -1,5 +1,11 @@
+# ScreenChurchProject dependencies
+# Recommended Python: 3.11, 3.12 or 3.13 (64-bit)
+
 PyQt5>=5.15.11,<5.16
 python-vlc>=3.0.20123
 setuptools>=70.0
 wheel>=0.43
-PyInstaller>=6.0
+
+# PyInstaller 6.0 does not support newer Python versions such as 3.13.
+# Use a newer 6.x release for Windows builds.
+PyInstaller>=6.15.0,<7.0

@@ -168,18 +168,19 @@ Fluxo recomendado:
 ```text
 1. Digite título, artista ou trecho.
 2. Marque se deseja buscar por Título, Artista e/ou Letra.
-3. Clique em 🔎 Pesquisar para listar links ou em 🌐 Abrir busca para pesquisar no navegador.
-4. Selecione o resultado; o título/artista são preenchidos automaticamente quando possível.
-5. Duplo clique no resultado abre o link no navegador quando a letra ainda está vazia; se já houver letra colada, abre direto no editor.
-6. Copie a letra autorizada e clique em 📋 Colar área de transferência.
-7. Use 🧩 Formatar slides para separar em 2 ou 4 linhas, se desejar.
-8. Clique em ✏ Abrir em edição para carregar a música no editor completo.
-9. Revise título, artista, letra, slides e fundos; depois salve a música.
+3. Clique em 🔎 Pesquisar para listar os resultados dentro do ScreenChurch.
+4. Selecione um resultado; o título/artista são preenchidos automaticamente quando possível.
+5. Dê duplo clique no resultado ou clique em ⬇ Carregar letra.
+6. O ScreenChurch tenta carregar a letra em texto puro e abrir diretamente o editor da música.
+7. A letra entra no editor com a regra: linha em branco = novo slide.
+8. Revise título, artista, letra, slides e fundos; depois salve a música.
 ```
 
-O botão **✅ Salvar direto** continua disponível para casos simples. O botão **✏ Abrir em edição** é o fluxo recomendado, pois abre a mesma janela de edição de músicas com o texto puro à esquerda e os slides gerados automaticamente por linhas em branco.
+O botão **✏ Carregar na edição** usa o mesmo fluxo do duplo clique: tenta buscar a letra do resultado selecionado e abre o editor completo. O botão **✅ Salvar direto** continua disponível para casos simples quando a letra já estiver no campo de texto.
 
-O ScreenChurch **não copia letras automaticamente** de sites de terceiros. A janela foi feita para auxiliar a busca e o cadastro local, mantendo a igreja responsável por usar somente conteúdos próprios, de domínio público ou devidamente licenciados/autorizados.
+Se um site bloquear a leitura automática ou retornar conteúdo incompatível, use **🌐 Abrir busca** como alternativa, copie a letra autorizada manualmente, clique em **📋 Colar área de transferência** e depois carregue na edição. A importação pela área de transferência possui proteção extra: se o conteúdo copiado parecer ser caminho de arquivo, URL, lista de arquivos do projeto, log ou texto técnico, o ScreenChurch bloqueia a importação para evitar que informações sem sentido sejam carregadas como letra.
+
+A responsabilidade de uso das letras continua sendo da igreja/operador. Use apenas conteúdos próprios, de domínio público ou devidamente licenciados/autorizados.
 
 ### 6. Cultos e backups
 
@@ -237,7 +238,29 @@ MP4 com vídeo H.264 e áudio AAC
 
 A reprodução usa **VLC** como backend principal. Instale o **VLC Media Player 64-bit** no Windows.
 
-### 9. Instalação
+
+### 9. Busca rápida da Bíblia
+
+A janela de localização da Bíblia agora trabalha em etapas, semelhante ao fluxo de operação do Holyrics:
+
+```text
+Livro → Enter → Capítulo → Enter → Versículo → Enter
+```
+
+Enquanto você digita o livro, o ScreenChurch mostra sugestões como `Josué`, `Joel`, `Jonas`, `João` e `Jó`. Use as setas para alternar a sugestão selecionada e pressione **Enter** para confirmar.
+
+Depois de confirmar o livro, o programa libera apenas capítulos válidos daquele livro. Exemplo: se o livro possuir 21 capítulos, o capítulo `0` e qualquer valor acima de `21` são bloqueados. O mesmo vale para os versículos do capítulo selecionado.
+
+Atalhos da busca rápida:
+
+```text
+Enter      confirma a etapa atual
+Backspace  corrige ou volta uma etapa
+Setas      alternam a sugestão de livro
+Esc        cancela a busca rápida
+```
+
+### 10. Instalação
 
 ```bash
 python -m venv .venv
@@ -245,21 +268,23 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+> Observação: se estiver usando Python 3.13, mantenha `PyInstaller>=6.15.0,<7.0`. Versões antigas como `PyInstaller==6.0` não são compatíveis com Python 3.13.
+
 Instale também o **VLC Media Player 64-bit**.
 
-### 10. Execução
+### 11. Execução
 
 ```bash
 python screenChurch.py
 ```
 
-### 11. Build Windows
+### 12. Build Windows
 
 ```powershell
 .\build_windows.ps1
 ```
 
-### 11. Atalhos
+### 13. Atalhos
 
 ```text
 F5/F11      Iniciar/parar projeção
@@ -415,18 +440,19 @@ Recommended workflow:
 ```text
 1. Type the title, artist or a lyric excerpt.
 2. Choose whether to search by Title, Artist and/or Lyrics.
-3. Click 🔎 Search to list links or 🌐 Open search to use the browser.
+3. Click 🔎 Search to list results inside ScreenChurch.
 4. Select a result; title/artist are filled automatically when possible.
-5. Double-clicking a result opens the link in the browser when the lyrics field is still empty; if lyrics are already pasted, it opens the editor.
-6. Copy authorized lyrics and click 📋 Paste clipboard.
-7. Use 🧩 Format slides to split the text into 2 or 4 lines, if needed.
-8. Click ✏ Open in editor to load the song into the full song editor.
-9. Review title, artist, lyrics, slides and backgrounds; then save the song.
+5. Double-click the result or click ⬇ Load lyrics.
+6. ScreenChurch tries to load the lyrics as plain text and open the full song editor.
+7. The editor uses the rule: blank line = new slide.
+8. Review title, artist, lyrics, slides and backgrounds; then save the song.
 ```
 
-The **✅ Save directly** button remains available for simple cases. The recommended workflow is **✏ Open in editor**, because it opens the same song editor window with plain text on the left and slides generated automatically from blank lines.
+The **✏ Open in editor** button uses the same flow as double-click: it tries to fetch the selected result's lyrics and opens the full editor. The **✅ Save directly** button remains available for simple cases when lyrics are already in the text field.
 
-ScreenChurch **does not automatically copy lyrics** from third-party websites. The dialog helps with discovery and local registration; each church remains responsible for using only original, public-domain or properly licensed/authorized content.
+If a website blocks automatic reading or returns incompatible content, use **🌐 Open search** as a fallback, manually copy authorized lyrics, click **📋 Paste clipboard**, and then open the editor. Clipboard import has an extra safety check: if the copied content looks like file paths, URLs, project file lists, logs or technical text, ScreenChurch blocks the import so meaningless content is not loaded as song lyrics.
+
+Lyrics usage remains the responsibility of the church/operator. Use only original, public-domain or properly licensed/authorized content.
 
 ### 6. Services and backups
 
@@ -484,7 +510,29 @@ MP4 with H.264 video and AAC audio
 
 Video playback uses **VLC** as the main backend. Install **VLC Media Player 64-bit** on Windows.
 
-### 9. Installation
+
+### 9. Fast Bible search
+
+The Bible locator now works step by step, similar to a church presentation workflow:
+
+```text
+Book → Enter → Chapter → Enter → Verse → Enter
+```
+
+While you type the book, ScreenChurch shows suggestions such as `Josué`, `Joel`, `Jonas`, `João` and `Jó`. Use the arrow keys to change the selected suggestion and press **Enter** to confirm.
+
+After the book is confirmed, only valid chapters for that book are accepted. Example: if the book has 21 chapters, chapter `0` and any value above `21` are blocked. The same validation is applied to verses in the selected chapter.
+
+Fast search shortcuts:
+
+```text
+Enter      confirm current step
+Backspace  correct or go back one step
+Arrows     switch selected book suggestion
+Esc        cancel fast search
+```
+
+### 10. Installation
 
 ```bash
 python -m venv .venv
@@ -500,13 +548,13 @@ Also install **VLC Media Player 64-bit**.
 python screenChurch.py
 ```
 
-### 11. Windows build
+### 12. Windows build
 
 ```powershell
 .\build_windows.ps1
 ```
 
-### 11. Shortcuts
+### 13. Shortcuts
 
 ```text
 F5/F11      Start/stop projection

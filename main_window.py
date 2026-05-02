@@ -6,6 +6,7 @@ import sqlite3
 import urllib.parse
 import urllib.request
 import webbrowser
+from html import unescape as html_unescape_std
 from functools import partial
 
 from PyQt5.QtCore import QSettings, QTimer, Qt, QSize
@@ -134,91 +135,364 @@ BIBLE_GROUPS = {
 }
 
 
+
 class BibleQuickSearchDialog(QDialog):
-    """Popup for very fast keyboard-driven Bible reference search."""
+    """Sequential popup for fast Bible reference entry.
+
+    Flow inspired by church presentation software:
+    1. type/select the book;
+    2. press Enter to jump to chapter;
+    3. press Enter to jump to verse;
+    4. press Enter to send the validated reference live.
+    """
+
+    STAGE_BOOK = "book"
+    STAGE_CHAPTER = "chapter"
+    STAGE_VERSE = "verse"
 
     def __init__(self, navigator, initial_text=""):
         super().__init__(navigator)
         self.navigator = navigator
+        self.stage = self.STAGE_BOOK
+        self.book_text = ""
+        self.chapter_text = ""
+        self.verse_text = ""
+        self.selected_book = None
+        self.selected_book_index = 0
+        self.message = ""
         self.setWindowTitle("Localizar referência")
         self.setModal(False)
-        self.resize(560, 260)
+        self.resize(900, 430)
         self.build_ui()
-        if initial_text:
-            self.search_edit.setText(initial_text)
-            self.search_edit.setCursorPosition(len(initial_text))
+        self.apply_initial_text(initial_text)
+        self.update_view()
 
     def build_ui(self):
         layout = QVBoxLayout(self)
-        title = QLabel("Digite livro, capítulo e versículo")
-        title.setStyleSheet("font-size: 18px; font-weight: 600; color: #f1f1f1;")
-        hint = QLabel("Exemplos: jo 3:16  ·  genesis 1  ·  rm 8:28  ·  salmo 23")
-        hint.setStyleSheet("color: #cfcfcf;")
-        self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Digite aqui...")
-        self.search_edit.setStyleSheet(
-            "QLineEdit { font-size: 24px; padding: 10px; border: 2px solid #9bb7d4; "
-            "border-radius: 8px; background: #4a4a4a; color: #ffffff; }"
+        layout.setContentsMargins(22, 16, 22, 18)
+        layout.setSpacing(10)
+
+        top = QHBoxLayout()
+        top.addStretch(1)
+        esc_label = QLabel("Esc para cancelar")
+        esc_label.setStyleSheet("color: #f4f4f4; font-size: 13px;")
+        top.addWidget(esc_label)
+        layout.addLayout(top)
+
+        self.book_title = QLabel("Livro")
+        self.book_value = QLabel("_")
+        self.book_suggestions = QLabel("Digite as iniciais do livro")
+        self.chapter_title = QLabel("Capítulo")
+        self.chapter_value = QLabel("_")
+        self.chapter_hint = QLabel("—")
+        self.verse_title = QLabel("Versículo")
+        self.verse_value = QLabel("_")
+        self.verse_hint = QLabel("—")
+        self.status_label = QLabel("")
+
+        for label in (self.book_title, self.chapter_title, self.verse_title):
+            label.setAlignment(Qt.AlignCenter)
+            label.setStyleSheet("font-size: 30px; font-weight: 700; color: #ededed;")
+        for label in (self.book_value, self.chapter_value, self.verse_value):
+            label.setAlignment(Qt.AlignCenter)
+            label.setStyleSheet("font-size: 38px; font-weight: 700; color: #f2f2f2;")
+        for label in (self.book_suggestions, self.chapter_hint, self.verse_hint, self.status_label):
+            label.setAlignment(Qt.AlignCenter)
+            label.setWordWrap(True)
+            label.setStyleSheet("font-size: 15px; color: #d9d9d9;")
+
+        layout.addWidget(self.book_title)
+        layout.addWidget(self.book_value)
+        layout.addWidget(self.book_suggestions)
+        layout.addSpacing(6)
+        layout.addWidget(self.chapter_title)
+        layout.addWidget(self.chapter_value)
+        layout.addWidget(self.chapter_hint)
+        layout.addSpacing(20)
+        layout.addWidget(self.verse_title)
+        layout.addWidget(self.verse_value)
+        layout.addWidget(self.verse_hint)
+        layout.addStretch(1)
+        layout.addWidget(self.status_label)
+
+        self.setStyleSheet(
+            "QDialog { background: #3b3b3b; color: #f1f1f1; }"
+            "QLabel { color: #f1f1f1; }"
         )
-        self.search_edit.textChanged.connect(self.preview_search)
-        self.result_label = QLabel("Aguardando digitação...")
-        self.result_label.setWordWrap(True)
-        self.result_label.setStyleSheet("font-size: 15px; color: #f1f1f1; padding: 8px;")
-        row = QHBoxLayout()
-        preview_button = QPushButton("👁 Prévia")
-        live_button = QPushButton("📡 Enviar")
-        close_button = QPushButton("Fechar")
-        preview_button.clicked.connect(self.navigator.load_selected_preview)
-        live_button.clicked.connect(self.navigator.send_selected_live)
-        close_button.clicked.connect(self.close)
-        row.addWidget(preview_button)
-        row.addWidget(live_button)
-        row.addStretch(1)
-        row.addWidget(close_button)
-        layout.addWidget(title)
-        layout.addWidget(hint)
-        layout.addWidget(self.search_edit)
-        layout.addWidget(self.result_label, 1)
-        layout.addLayout(row)
-        self.setStyleSheet("QDialog { background: #3b3b3b; color: #f1f1f1; } QPushButton { padding: 7px 12px; }")
 
     def showEvent(self, event):
         super().showEvent(event)
-        self.search_edit.setFocus()
+        self.setFocus()
+
+    def apply_initial_text(self, initial_text):
+        text = str(initial_text or "").strip()
+        if not text:
+            return
+        # If a full reference is pasted/opened, parse it immediately.
+        # Single book initials such as "Jo" must stay in the book stage.
+        if any(char.isdigit() for char in text) and self.navigator.try_parse_reference(text):
+            self.selected_book = self.navigator.current_book
+            self.book_text = self.selected_book.get("name", "") if self.selected_book else text
+            self.chapter_text = str(self.navigator.current_chapter.get("number", "")) if self.navigator.current_chapter else ""
+            self.verse_text = str(self.navigator.current_verse_number or "")
+            self.stage = self.STAGE_VERSE if self.chapter_text else self.STAGE_CHAPTER
+            return
+        self.book_text = text
+        self.stage = self.STAGE_BOOK
 
     def keyPressEvent(self, event):
-        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
-            self.navigator.send_selected_live()
-            event.accept()
-            return
-        if event.key() == Qt.Key_Escape:
+        key = event.key()
+        text = event.text()
+
+        if key == Qt.Key_Escape:
             self.close()
             event.accept()
             return
-        super().keyPressEvent(event)
-
-    def preview_search(self, text):
-        text = text.strip()
+        if key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab):
+            self.confirm_stage()
+            event.accept()
+            return
+        if key == Qt.Key_Backspace:
+            self.handle_backspace()
+            event.accept()
+            return
+        if key in (Qt.Key_Up, Qt.Key_Left):
+            self.move_book_selection(-1)
+            event.accept()
+            return
+        if key in (Qt.Key_Down, Qt.Key_Right):
+            self.move_book_selection(1)
+            event.accept()
+            return
         if not text:
-            self.result_label.setText("Aguardando digitação...")
+            super().keyPressEvent(event)
             return
-        if self.navigator.try_parse_reference(text):
-            descriptor = self.navigator.selected_descriptor()
-            if descriptor:
-                self.result_label.setText(
-                    f"Encontrado: <b>{descriptor.get('title')}</b><br>"
-                    f"{descriptor.get('body', '').replace(chr(10), '<br>')}"
-                )
-            return
-        matches = self.navigator.matching_book_names(text)
-        if matches:
-            self.result_label.setText("Livros encontrados: " + ", ".join(matches[:8]))
-            return
-        self.navigator.search_word(text)
-        if self.navigator.verse_list.count():
-            self.result_label.setText(f"Busca por palavra: {self.navigator.verse_list.count()} resultado(s) visíveis.")
+
+        if self.stage == self.STAGE_BOOK:
+            if text.isprintable():
+                self.book_text += text
+                self.selected_book_index = 0
+        elif self.stage == self.STAGE_CHAPTER:
+            if text.isdigit():
+                self.chapter_text += text
+            elif text in {":", " ", ".", "-"} and self.chapter_text:
+                self.confirm_stage()
+        elif self.stage == self.STAGE_VERSE:
+            if text.isdigit():
+                self.verse_text += text
+            elif text in {" ", ".", ":"} and self.verse_text:
+                self.confirm_stage()
+
+        self.message = ""
+        self.update_view()
+        event.accept()
+
+    def handle_backspace(self):
+        if self.stage == self.STAGE_VERSE:
+            if self.verse_text:
+                self.verse_text = self.verse_text[:-1]
+            else:
+                self.stage = self.STAGE_CHAPTER
+                self.chapter_text = self.chapter_text[:-1]
+        elif self.stage == self.STAGE_CHAPTER:
+            if self.chapter_text:
+                self.chapter_text = self.chapter_text[:-1]
+            else:
+                self.stage = self.STAGE_BOOK
+                self.book_text = self.book_text[:-1]
+                self.selected_book = None
         else:
-            self.result_label.setText("Nenhum resultado encontrado.")
+            self.book_text = self.book_text[:-1]
+            self.selected_book = None
+        self.message = ""
+        self.update_view()
+
+    def move_book_selection(self, delta):
+        if self.stage != self.STAGE_BOOK:
+            return
+        matches = self.book_matches(self.book_text)
+        if not matches:
+            return
+        self.selected_book_index = (self.selected_book_index + delta) % len(matches)
+        self.update_view()
+
+    def confirm_stage(self):
+        if self.stage == self.STAGE_BOOK:
+            matches = self.book_matches(self.book_text)
+            if not matches:
+                self.message = "Livro não encontrado. Digite novamente."
+                self.update_view()
+                return
+            self.selected_book_index = min(self.selected_book_index, len(matches) - 1)
+            self.selected_book = matches[self.selected_book_index]
+            self.navigator.select_book(self.selected_book)
+            self.book_text = self.selected_book.get("name", self.book_text)
+            self.chapter_text = ""
+            self.verse_text = ""
+            self.stage = self.STAGE_CHAPTER
+            self.message = "Livro confirmado. Digite o capítulo."
+            self.update_view()
+            return
+
+        if self.stage == self.STAGE_CHAPTER:
+            chapter = self.validated_chapter()
+            if not chapter:
+                self.update_view()
+                return
+            self.navigator.select_chapter(chapter)
+            self.chapter_text = str(chapter.get("number", self.chapter_text))
+            self.verse_text = ""
+            self.stage = self.STAGE_VERSE
+            self.message = "Capítulo confirmado. Digite o versículo."
+            self.update_view()
+            return
+
+        if self.stage == self.STAGE_VERSE:
+            verse_number = self.validated_verse_number()
+            if verse_number is None:
+                self.update_view()
+                return
+            self.navigator.select_verse_number(verse_number)
+            self.verse_text = str(verse_number)
+            self.message = "Referência enviada."
+            self.update_view()
+            self.navigator.send_selected_live()
+            self.close()
+
+    def book_matches(self, query):
+        version = self.navigator.current_version()
+        if not version:
+            return []
+        normalized_query = self.navigator.normalize_text(str(query).replace(" ", ""))
+        books = version.get("books", [])
+        if not normalized_query:
+            return books
+
+        starts = []
+        contains = []
+        for book in books:
+            name = book.get("name", "")
+            abbrev = self.navigator.book_abbreviation(name)
+            normalized_name = self.navigator.normalize_text(name.replace(" ", ""))
+            normalized_abbrev = self.navigator.normalize_text(abbrev.replace(" ", ""))
+            haystack = normalized_name + normalized_abbrev
+            if normalized_name.startswith(normalized_query) or normalized_abbrev.startswith(normalized_query):
+                starts.append(book)
+            elif normalized_query in haystack:
+                contains.append(book)
+        return starts + contains
+
+    def validated_chapter(self):
+        if not self.selected_book:
+            self.message = "Confirme o livro antes de informar o capítulo."
+            return None
+        if not self.chapter_text:
+            self.message = "Digite um capítulo."
+            return None
+        try:
+            number = int(self.chapter_text)
+        except ValueError:
+            self.message = "Capítulo inválido."
+            return None
+        chapters = self.selected_book.get("chapters", [])
+        numbers = [int(ch.get("number", 0)) for ch in chapters]
+        max_chapter = max(numbers) if numbers else 0
+        if number < 1:
+            self.message = "O capítulo não pode ser 0."
+            return None
+        if number > max_chapter:
+            self.message = f"{self.selected_book.get('name')} possui capítulos de 1 a {max_chapter}."
+            return None
+        chapter = next((ch for ch in chapters if int(ch.get("number", 0)) == number), None)
+        if not chapter:
+            self.message = "Capítulo não encontrado nessa versão."
+        return chapter
+
+    def validated_verse_number(self):
+        if not self.navigator.current_chapter:
+            self.message = "Confirme o capítulo antes de informar o versículo."
+            return None
+        if not self.verse_text:
+            self.message = "Digite um versículo."
+            return None
+        try:
+            number = int(self.verse_text)
+        except ValueError:
+            self.message = "Versículo inválido."
+            return None
+        verses = self.navigator.current_chapter.get("verses", [])
+        numbers = [int(v.get("number", 0)) for v in verses]
+        max_verse = max(numbers) if numbers else 0
+        if number < 1:
+            self.message = "O versículo não pode ser 0."
+            return None
+        if number > max_verse:
+            reference = f"{self.selected_book.get('name')} {self.chapter_text}"
+            self.message = f"{reference} possui versículos de 1 a {max_verse}."
+            return None
+        if number not in numbers:
+            self.message = "Versículo não encontrado nessa versão."
+            return None
+        return number
+
+    def current_chapter_max(self):
+        if not self.selected_book:
+            return 0
+        chapters = self.selected_book.get("chapters", [])
+        numbers = [int(ch.get("number", 0)) for ch in chapters]
+        return max(numbers) if numbers else 0
+
+    def current_verse_max(self):
+        chapter = self.navigator.current_chapter
+        if not chapter:
+            return 0
+        numbers = [int(v.get("number", 0)) for v in chapter.get("verses", [])]
+        return max(numbers) if numbers else 0
+
+    def update_view(self):
+        matches = self.book_matches(self.book_text)
+        if self.stage == self.STAGE_BOOK and matches:
+            self.selected_book_index = min(self.selected_book_index, len(matches) - 1)
+            self.selected_book = matches[self.selected_book_index]
+        elif self.stage == self.STAGE_BOOK:
+            self.selected_book = None
+
+        self.book_value.setText((self.book_text or "_") + ("_" if self.stage == self.STAGE_BOOK else ""))
+        if self.stage != self.STAGE_BOOK and self.selected_book:
+            self.book_value.setText(self.selected_book.get("name", self.book_text))
+
+        self.chapter_value.setText((self.chapter_text or "_") + ("_" if self.stage == self.STAGE_CHAPTER else ""))
+        self.verse_value.setText((self.verse_text or "_") + ("_" if self.stage == self.STAGE_VERSE else ""))
+
+        suggestion_text = self.format_book_suggestions(matches)
+        self.book_suggestions.setText(suggestion_text or "Digite as iniciais do livro")
+
+        max_chapter = self.current_chapter_max()
+        self.chapter_hint.setText(f"Capítulos permitidos: 1 a {max_chapter}" if max_chapter else "Confirme o livro para ver os capítulos")
+        max_verse = self.current_verse_max()
+        self.verse_hint.setText(f"Versículos permitidos: 1 a {max_verse}" if max_verse else "Confirme o capítulo para ver os versículos")
+
+        self.highlight_stage()
+        self.status_label.setText(self.message or "Enter confirma a etapa atual · Backspace corrige · Setas escolhem o livro")
+
+    def format_book_suggestions(self, matches):
+        if not matches:
+            return "Nenhum livro encontrado"
+        formatted = []
+        for index, book in enumerate(matches[:8]):
+            name = book.get("name", "")
+            if index == self.selected_book_index and self.stage == self.STAGE_BOOK:
+                formatted.append(f"<b>{name}</b>")
+            else:
+                formatted.append(name)
+        return " · ".join(formatted)
+
+    def highlight_stage(self):
+        active = "font-size: 30px; font-weight: 800; color: #ffffff;"
+        inactive = "font-size: 30px; font-weight: 600; color: #c7c7c7;"
+        self.book_title.setStyleSheet(active if self.stage == self.STAGE_BOOK else inactive)
+        self.chapter_title.setStyleSheet(active if self.stage == self.STAGE_CHAPTER else inactive)
+        self.verse_title.setStyleSheet(active if self.stage == self.STAGE_VERSE else inactive)
 
 
 class BibleNavigatorDialog(QDialog):
@@ -872,9 +1146,9 @@ class OnlineSongSearchDialog(QDialog):
         self.results_list.itemDoubleClicked.connect(lambda _item: self.handle_result_double_click())
         left_layout.addWidget(self.results_list, 1)
         open_row = QHBoxLayout()
-        self.open_result_button = QPushButton("🌐 Abrir resultado")
+        self.open_result_button = QPushButton("⬇ Carregar letra")
         self.load_editor_button = QPushButton("✏ Carregar na edição")
-        self.open_result_button.clicked.connect(self.open_selected_result)
+        self.open_result_button.clicked.connect(self.load_selected_result_lyrics)
         self.load_editor_button.clicked.connect(self.load_selected_to_editor)
         open_row.addWidget(self.open_result_button)
         open_row.addWidget(self.load_editor_button)
@@ -1026,6 +1300,7 @@ class OnlineSongSearchDialog(QDialog):
         webbrowser.open(url)
 
     def open_selected_result(self):
+        """Open the selected result in the browser as a manual fallback."""
         item = self.results_list.currentItem()
         if not item:
             return
@@ -1033,6 +1308,153 @@ class OnlineSongSearchDialog(QDialog):
         if data and data.get("url"):
             self.prefill_from_selected_result()
             webbrowser.open(data["url"])
+
+    def load_selected_result_lyrics(self):
+        """Fetch selected result, extract plain lyrics, and open the song editor.
+
+        This is the fast Holyrics-like flow requested for ScreenChurch: the
+        operator searches, selects a result, and the program tries to load the
+        song as plain text in the editor. The browser is not opened here.
+        """
+        data = self.selected_result_data()
+        if not data or not data.get("url"):
+            QMessageBox.information(self, "Música", "Selecione um resultado da busca.")
+            return
+
+        self.prefill_from_selected_result()
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            lyrics = self.fetch_lyrics_from_url(data["url"])
+        except Exception as exc:
+            lyrics = ""
+            error_message = str(exc)
+        else:
+            error_message = ""
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        if not lyrics:
+            QMessageBox.warning(
+                self,
+                "Música",
+                "Não consegui carregar a letra automaticamente desse resultado.\n\n"
+                "Tente outro resultado da lista ou use a opção de copiar/colar a letra autorizada."
+                + (f"\n\nDetalhe: {error_message}" if error_message else ""),
+            )
+            return
+
+        self.lyrics_edit.setPlainText(lyrics)
+        self.open_editor_with_current_data()
+
+    def fetch_lyrics_from_url(self, url):
+        """Download a result page and return the most likely plain lyrics block."""
+        request = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 ScreenChurch/1.0"
+                )
+            },
+        )
+        with urllib.request.urlopen(request, timeout=15) as response:
+            raw = response.read()
+            charset = response.headers.get_content_charset() or "utf-8"
+        html = raw.decode(charset, errors="ignore")
+        return self.extract_lyrics_from_html(html)
+
+    def extract_lyrics_from_html(self, html):
+        """Extract a clean, song-like text block from a lyrics page.
+
+        The implementation is intentionally generic and dependency-free. It
+        first preserves line breaks from common HTML tags, removes scripts and
+        styles, then selects the largest block that looks like lyrics.
+        """
+        if not html:
+            return ""
+
+        text = re.sub(r"(?is)<script.*?</script>", "\n", html)
+        text = re.sub(r"(?is)<style.*?</style>", "\n", text)
+        text = re.sub(r"(?is)<!--.*?-->", "\n", text)
+        text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+        text = re.sub(r"(?i)</(p|div|li|h[1-6]|section|article|span)>", "\n", text)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = html_unescape_std(text)
+        text = text.replace("\xa0", " ")
+        lines = [re.sub(r"\s+", " ", line).strip() for line in text.splitlines()]
+        lines = [line for line in lines if line]
+
+        ignored_fragments = (
+            "cookie", "política", "privacidade", "termos", "publicidade",
+            "anuncie", "compartilhar", "facebook", "instagram", "twitter",
+            "youtube", "spotify", "deezer", "cifra", "tablatura", "tradução",
+            "playlist", "ouvir", "login", "cadastre", "menu", "buscar",
+            "letras.mus", "vagalume", "copyright", "todos os direitos",
+            "denunciar", "enviar", "corrigir", "imprimir", "compositor",
+        )
+
+        def is_lyric_line(line):
+            low = line.lower()
+            if len(line) < 2 or len(line) > 120:
+                return False
+            if low.startswith(("http://", "https://", "www.", "file:/")):
+                return False
+            if any(fragment in low for fragment in ignored_fragments):
+                return False
+            letters = sum(ch.isalpha() for ch in line)
+            if letters < 2:
+                return False
+            return True
+
+        blocks = []
+        current = []
+        for line in lines:
+            if is_lyric_line(line):
+                current.append(line)
+                continue
+            if len(current) >= 3:
+                blocks.append(current)
+            current = []
+        if len(current) >= 3:
+            blocks.append(current)
+
+        if not blocks:
+            return ""
+
+        # Prefer longer blocks, but penalize blocks with many repeated labels.
+        def block_score(block):
+            unique_ratio = len(set(block)) / max(1, len(block))
+            avg_len = sum(len(line) for line in block) / max(1, len(block))
+            length_bonus = min(len(block), 80)
+            return length_bonus * unique_ratio - max(0, avg_len - 70) / 10
+
+        best = max(blocks, key=block_score)
+        if len(best) < 4:
+            return ""
+
+        # Remove leading metadata lines when they clearly repeat title/artist.
+        title = self.title_input.text().strip().lower()
+        artist = self.artist_input.text().strip().lower()
+        cleaned = []
+        for line in best:
+            low = line.lower()
+            if title and low == title:
+                continue
+            if artist and low == artist:
+                continue
+            cleaned.append(line)
+
+        lyrics = "\n".join(cleaned).strip()
+        if not self.looks_like_lyrics(lyrics):
+            return ""
+
+        # Apply the selected slide formatting immediately, so the editor opens
+        # with blank lines separating slides.
+        mode = self.format_combo.currentText()
+        if mode != "Manter texto colado":
+            max_lines = 2 if "2 linhas" in mode else 4
+            lyrics = self.format_text_blocks(lyrics, max_lines=max_lines)
+        return lyrics
 
     def selected_result_data(self):
         item = self.results_list.currentItem()
@@ -1070,6 +1492,14 @@ class OnlineSongSearchDialog(QDialog):
         if not text:
             QMessageBox.information(self, "Área de transferência", "Nenhum texto encontrado para colar.")
             return
+        if not self.looks_like_lyrics(text):
+            QMessageBox.warning(
+                self,
+                "Área de transferência",
+                "O texto copiado não parece ser uma letra de música.\n\n"
+                "Evitei importar caminhos de arquivos, links ou texto técnico para o editor."
+            )
+            return
         self.lyrics_edit.setPlainText(text)
 
     def current_song_data_from_form(self):
@@ -1102,6 +1532,14 @@ class OnlineSongSearchDialog(QDialog):
                 "Cole ou digite a letra autorizada antes de carregar para edição.",
             )
             return None
+        if require_lyrics and not self.looks_like_lyrics(song.get("lyrics", "")):
+            QMessageBox.warning(
+                self,
+                "Música",
+                "O conteúdo informado não parece ser uma letra de música.\n\n"
+                "Verifique se você não colou caminhos de arquivos, links, logs ou texto técnico."
+            )
+            return None
         return song
 
     def open_editor_with_current_data(self):
@@ -1115,40 +1553,67 @@ class OnlineSongSearchDialog(QDialog):
             self.accept()
 
     def handle_result_double_click(self):
-        """Prepare the selected online result without showing an empty-lyrics error.
+        """Load the selected online result directly into the song editor.
 
-        Double click should be a fast, non-blocking action: it fills title/artist
-        and, when the lyrics box is still empty, opens the selected web result so
-        the operator can copy authorized lyrics. The editor is opened only when
-        there is already text in the lyrics field or in the clipboard.
+        Double click must not open the browser. It tries to fetch the selected
+        result, extract the lyrics as plain text, and open the editor already
+        filled with title, artist and generated slides.
         """
         self.prefill_from_selected_result()
         if self.lyrics_edit.toPlainText().strip():
             self.open_editor_with_current_data()
             return
-        clipboard = QApplication.clipboard()
-        clip_text = clipboard.text().strip() if clipboard else ""
-        if self.looks_like_lyrics(clip_text):
-            self.lyrics_edit.setPlainText(clip_text)
-            self.open_editor_with_current_data()
-            return
-        self.open_selected_result()
-        self.lyrics_edit.setFocus()
+        self.load_selected_result_lyrics()
 
     def load_selected_to_editor(self):
         self.prefill_from_selected_result()
-        if not self.lyrics_edit.toPlainText().strip():
-            clipboard = QApplication.clipboard()
-            clip_text = clipboard.text().strip() if clipboard else ""
-            if self.looks_like_lyrics(clip_text):
-                self.lyrics_edit.setPlainText(clip_text)
-        self.open_editor_with_current_data()
+        if self.lyrics_edit.toPlainText().strip():
+            self.open_editor_with_current_data()
+            return
+        self.load_selected_result_lyrics()
 
     def looks_like_lyrics(self, text):
+        """Return True only for user-provided lyric-like text.
+
+        This prevents accidental imports from the clipboard such as file paths,
+        URLs, project logs or lists of Python files. The online search dialog
+        must never send those technical strings to the song editor as lyrics.
+        """
         if not text:
             return False
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-        return len(lines) >= 2 and len(text) >= 20
+
+        stripped = text.strip()
+        lines = [line.strip() for line in stripped.splitlines() if line.strip()]
+        if len(lines) < 2 or len(stripped) < 20:
+            return False
+
+        technical_hits = 0
+        path_or_url_patterns = (
+            r"^file:/",
+            r"^https?://",
+            r"^[a-zA-Z]:[\\/]",
+            r"^/[\w .-]+/",
+            r".*[\\/](app|main_window|constants|screenChurch|build_windows)\.(py|ps1)$",
+            r".*\.(py|pyc|ps1|spec|json|zip|rar|db)$",
+        )
+
+        for line in lines:
+            normalized = line.replace("\\", "/")
+            if any(re.match(pattern, normalized, flags=re.I) for pattern in path_or_url_patterns):
+                technical_hits += 1
+            elif "ScreenChurchProject" in line or "__pycache__" in line:
+                technical_hits += 1
+
+        if technical_hits >= max(2, len(lines) // 3):
+            return False
+
+        # Lyrics normally have several short/medium text lines. Very long
+        # machine-like lines are another sign that the clipboard is not a song.
+        very_long_lines = sum(1 for line in lines if len(line) > 180)
+        if very_long_lines >= max(2, len(lines) // 2):
+            return False
+
+        return True
 
     def format_pasted_text(self):
         text = self.lyrics_edit.toPlainText().strip()
