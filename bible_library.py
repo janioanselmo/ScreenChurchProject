@@ -142,26 +142,70 @@ class BibleLibraryMixin:
         return normalized_verses
 
     def readable_bible_version_name(self, value):
-        """Expand common Bible abbreviations to full names for display."""
+        """Expand Bible version abbreviations for display.
+
+        Official JSON files from ``damarals/biblias`` normally use the
+        abbreviation as the filename, for example ``NVI.json``. For those
+        files, the UI should show both abbreviation and full name, such as
+        ``NVI - Nova Versão Internacional``.
+        """
         if not value:
             return ""
 
         text = str(value).strip()
-        key = os.path.splitext(os.path.basename(text))[0]
-        key = key.lower().replace("-", "_").replace(" ", "_")
-        version_names = {
-            "acf": "Almeida Corrigida Fiel",
-            "ara": "Almeida Revista e Atualizada",
-            "arc": "Almeida Revista e Corrigida",
-            "naa": "Nova Almeida Atualizada",
-            "nvi": "Nova Versão Internacional",
-            "ntlh": "Nova Tradução na Linguagem de Hoje",
-            "kja": "King James Atualizada",
-            "kjv": "King James Version",
-            "aa": "Almeida Revisada Imprensa Bíblica",
-            "almeida": "Almeida",
+        if " - " in text:
+            return text
+
+        raw_key = os.path.splitext(os.path.basename(text))[0].strip()
+        key = raw_key.lower().replace("-", "_").replace(" ", "_")
+        official_versions = {
+            # Siglas oficiais listadas no projeto damarals/biblias.
+            "acf": ("ACF", "Almeida Corrigida e Fiel"),
+            "ara": ("ARA", "Almeida Revista e Atualizada"),
+            "arc": ("ARC", "Almeida Revista e Corrigida"),
+            "as21": ("AS21", "Almeida Século XXI"),
+            "jfaa": ("JFAA", "Almeida Atualizada"),
+            "kja": ("KJA", "King James Atualizada"),
+            "kjf": ("KJF", "King James Fiel"),
+            "naa": ("NAA", "Nova Almeida Atualizada"),
+            "nbv": ("NBV", "Nova Bíblia Viva"),
+            "ntlh": ("NTLH", "Nova Tradução na Linguagem de Hoje"),
+            "nvi": ("NVI", "Nova Versão Internacional"),
+            "nvt": ("NVT", "Nova Versão Transformadora"),
+            "tb": ("TB", "Tradução Brasileira"),
         }
-        return version_names.get(key, text.replace("_", " ").title())
+        aliases = {
+            # Compatibilidade com nomes/aliases antigos ou externos.
+            "kjv": ("KJV", "King James Version"),
+            "aa": ("AA", "Almeida Revisada Imprensa Bíblica"),
+            "almeida": ("", "Almeida"),
+            "almeida_corrigida_fiel": ("ACF", "Almeida Corrigida e Fiel"),
+            "almeida_corrigida_e_fiel": ("ACF", "Almeida Corrigida e Fiel"),
+            "almeida_revista_e_atualizada": ("ARA", "Almeida Revista e Atualizada"),
+            "almeida_revista_e_corrigida": ("ARC", "Almeida Revista e Corrigida"),
+            "almeida_seculo_xxi": ("AS21", "Almeida Século XXI"),
+            "almeida_século_xxi": ("AS21", "Almeida Século XXI"),
+            "almeida_atualizada": ("JFAA", "Almeida Atualizada"),
+            "king_james_atualizada": ("KJA", "King James Atualizada"),
+            "king_james_fiel": ("KJF", "King James Fiel"),
+            "nova_almeida_atualizada": ("NAA", "Nova Almeida Atualizada"),
+            "nova_biblia_viva": ("NBV", "Nova Bíblia Viva"),
+            "nova_bíblia_viva": ("NBV", "Nova Bíblia Viva"),
+            "nova_traducao_na_linguagem_de_hoje": ("NTLH", "Nova Tradução na Linguagem de Hoje"),
+            "nova_tradução_na_linguagem_de_hoje": ("NTLH", "Nova Tradução na Linguagem de Hoje"),
+            "nova_versao_internacional": ("NVI", "Nova Versão Internacional"),
+            "nova_versão_internacional": ("NVI", "Nova Versão Internacional"),
+            "nova_versao_transformadora": ("NVT", "Nova Versão Transformadora"),
+            "nova_versão_transformadora": ("NVT", "Nova Versão Transformadora"),
+            "traducao_brasileira": ("TB", "Tradução Brasileira"),
+            "tradução_brasileira": ("TB", "Tradução Brasileira"),
+        }
+        version = official_versions.get(key) or aliases.get(key)
+        if version:
+            abbreviation, full_name = version
+            return f"{abbreviation} - {full_name}" if abbreviation else full_name
+
+        return text.replace("_", " ").title()
 
     def version_name_from_filename(self, filename):
         """Return a full readable Bible version name from a JSON filename."""

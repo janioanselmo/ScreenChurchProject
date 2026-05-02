@@ -157,6 +157,25 @@ Também continua aceitando o formato nativo do ScreenChurch:
 }
 ```
 
+
+Mapeamento automático de versões do projeto `damarals/biblias`:
+
+| Sigla | Nome exibido no ScreenChurch |
+|---|---|
+| ACF | ACF - Almeida Corrigida e Fiel |
+| ARA | ARA - Almeida Revista e Atualizada |
+| ARC | ARC - Almeida Revista e Corrigida |
+| AS21 | AS21 - Almeida Século XXI |
+| JFAA | JFAA - Almeida Atualizada |
+| KJA | KJA - King James Atualizada |
+| KJF | KJF - King James Fiel |
+| NAA | NAA - Nova Almeida Atualizada |
+| NBV | NBV - Nova Bíblia Viva |
+| NTLH | NTLH - Nova Tradução na Linguagem de Hoje |
+| NVI | NVI - Nova Versão Internacional |
+| NVT | NVT - Nova Versão Transformadora |
+| TB | TB - Tradução Brasileira |
+
 Você pode simplesmente copiar os arquivos `.json` para:
 
 ```text
@@ -289,7 +308,7 @@ A reprodução usa **VLC** como backend principal. Instale o **VLC Media Player 
 
 ### 9. Estilo visual da Bíblia
 
-A janela da Bíblia usa nomes completos das versões importadas, como **Nova Versão Internacional** e **Almeida Corrigida Fiel**, em vez de mostrar apenas siglas.
+A janela da Bíblia usa **sigla + nome completo** das versões importadas, como **NVI - Nova Versão Internacional** e **ACF - Almeida Corrigida e Fiel**, em vez de mostrar apenas siglas. Para arquivos do projeto `damarals/biblias`, o ScreenChurch reconhece automaticamente as siglas `ACF`, `ARA`, `ARC`, `AS21`, `JFAA`, `KJA`, `KJF`, `NAA`, `NBV`, `NTLH`, `NVI`, `NVT` e `TB`.
 
 Os versículos possuem a mesma lógica visual das letras:
 
@@ -494,6 +513,25 @@ The importer supports the JSON format used by **damarals/biblias**, which provid
 
 The native ScreenChurch format is also supported.
 
+
+Automatic version mapping for the `damarals/biblias` project:
+
+| Abbreviation | Display name in ScreenChurch |
+|---|---|
+| ACF | ACF - Almeida Corrigida e Fiel |
+| ARA | ARA - Almeida Revista e Atualizada |
+| ARC | ARC - Almeida Revista e Corrigida |
+| AS21 | AS21 - Almeida Século XXI |
+| JFAA | JFAA - Almeida Atualizada |
+| KJA | KJA - King James Atualizada |
+| KJF | KJF - King James Fiel |
+| NAA | NAA - Nova Almeida Atualizada |
+| NBV | NBV - Nova Bíblia Viva |
+| NTLH | NTLH - Nova Tradução na Linguagem de Hoje |
+| NVI | NVI - Nova Versão Internacional |
+| NVT | NVT - Nova Versão Transformadora |
+| TB | TB - Tradução Brasileira |
+
 When a Bible is imported, the file is copied to:
 
 ```text
@@ -622,7 +660,7 @@ Video playback uses **VLC** as the main backend. Install **VLC Media Player 64-b
 
 ### 9. Bible visual style
 
-The Bible window displays full imported version names, such as **Nova Versão Internacional** and **Almeida Corrigida Fiel**, instead of showing only abbreviations.
+The Bible window displays **abbreviation + full name** for imported versions, such as **NVI - Nova Versão Internacional** and **ACF - Almeida Corrigida e Fiel**, instead of showing only abbreviations. For files from the `damarals/biblias` project, ScreenChurch automatically recognizes the abbreviations `ACF`, `ARA`, `ARC`, `AS21`, `JFAA`, `KJA`, `KJF`, `NAA`, `NBV`, `NTLH`, `NVI`, `NVT` and `TB`.
 
 Bible verses now use the same visual editing concept as lyrics:
 
