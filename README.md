@@ -362,7 +362,9 @@ Esc        cancela a busca rápida
 A operação usa o botão **▶ Projetar** como comando principal para reduzir conflitos de áudio/vídeo.
 
 - **▶ Projetar**: abre/fecha a janela do telão e espelha todas as partes configuradas.
-- **Abas Mídias, Letras, Bíblia e Culto**: preparam conteúdo na prévia da parte escolhida.
+- **Abas Mídias e Culto**: preparam conteúdo na prévia da parte escolhida.
+- **Aba Letras**: um clique prepara/seleciona; **duplo clique em um slide projeta automaticamente** aquele slide e abre a projeção, se necessário.
+- **Janela Bíblia**: um clique seleciona/prepara; **duplo clique em um versículo projeta automaticamente** o versículo e abre a projeção, se necessário.
 - **Blackout individual**: oculta somente a parte desejada, sem pausar ou reiniciar vídeo.
 - **Ao vivo**: é apenas status do que está na saída real.
 
@@ -379,7 +381,7 @@ Seta direita / Seta baixo / PageDown   avança slide da música ou versículo b�
 Seta esquerda / Seta cima / PageUp     retrocede slide da música ou versículo bíblico
 ```
 
-A navegação só atua em conteúdos do tipo **letra** ou **Bíblia** e somente com a projeção ativa. Imagens e vídeos não são alterados por esses atalhos.
+A navegação só atua em conteúdos do tipo **letra** ou **Bíblia** e somente com a projeção ativa. Para letras, após o duplo clique em um slide, as setas avançam/retrocedem os slides da música projetada. Para Bíblia, após o duplo clique em um versículo, as setas avançam/retrocedem os versículos, atravessando capítulos quando possível. Imagens e vídeos não são alterados por esses atalhos.
 
 ### 12. Instalação
 
@@ -727,7 +729,8 @@ Esc        cancel fast search
 The operator flow uses **▶ Project** as the main command to reduce audio/video conflicts:
 
 - **▶ Project**: opens/closes the projector/output window and mirrors all configured parts.
-- **Media, Lyrics, Bible and Service tabs**: prepare content in the selected part preview.
+- **Media, Bible and Service tabs**: prepare content in the selected part preview.
+- **Lyrics tab**: single-click prepares/selects; **double-clicking a slide projects it automatically** and opens projection if needed.
 - **Per-part Blackout**: hides only the selected part without pausing or restarting video.
 - **Live**: only shows the current real output status.
 
@@ -744,7 +747,7 @@ Right arrow / Down arrow / PageDown   next song slide or Bible verse
 Left arrow / Up arrow / PageUp        previous song slide or Bible verse
 ```
 
-Navigation only affects **lyrics** and **Bible** text while projection is active. Images and videos are not changed by these shortcuts.
+Navigation only affects **lyrics** and **Bible** text while projection is active. For lyrics, after double-clicking a slide, the arrow keys move through the projected song slides. Images and videos are not changed by these shortcuts.
 
 ### 12. Installation
 
@@ -1058,3 +1061,58 @@ This is a visual/organization update only and does not change saving, projection
   - Jânio Anselmo, Eng. Me
   - janio@ensa.com.br
   - +55 (48) 3017-1000
+
+### v52 — Projeção direta de slides de música
+
+- Na aba **Letras**, o duplo clique em um slide agora carrega e projeta automaticamente esse slide.
+- Se a projeção estiver fechada, ela é aberta automaticamente.
+- A regra de duplo clique ao vivo vale para letras/músicas e versículos bíblicos. Mídias mantêm o fluxo próprio.
+- Com uma música projetada, as setas do teclado avançam ou retrocedem os slides da música na projeção.
+- Com um versículo projetado, as setas do teclado avançam ou retrocedem os versículos da Bíblia na projeção.
+
+### v52 — Direct projection for song slides
+
+- In the **Lyrics** tab, double-clicking a slide now loads and projects that slide automatically.
+- If projection is closed, it opens automatically.
+- This rule applies only to lyrics/songs. Media and Bible keep their own workflows.
+- With a song projected, keyboard arrows move forward/backward through the projected song slides.
+
+
+
+### v53 — Navegação ao vivo por duplo clique em Letras e Bíblia
+
+- O duplo clique em um slide de música projeta imediatamente o slide e ativa a navegação da música.
+- O duplo clique em um versículo bíblico projeta imediatamente o versículo e ativa a navegação bíblica.
+- As setas do teclado foram capturadas em nível de aplicação para funcionar mesmo quando o foco está nas listas de slides ou versículos.
+- Seta direita/baixo/PageDown avança o slide ou versículo projetado.
+- Seta esquerda/cima/PageUp retrocede o slide ou versículo projetado.
+- Essa navegação não altera vídeos ou imagens.
+
+### v54 — Correção de navegação após fechar projeção e botão Salvar
+
+- Corrigido o estado de navegação textual ao fechar a projeção com **Esc** ou pelo botão **Projetar** e projetar novamente.
+- O duplo clique em slides de músicas e versículos bíblicos rearma explicitamente a navegação ativa, permitindo avançar/retroceder com as setas em ciclos repetidos de projeção.
+- Ao ocultar a janela de projeção, o temporizador de sincronização é parado corretamente e o foco retorna para a janela principal.
+- No editor de músicas, o botão **💾 Salvar** foi reposicionado como o primeiro botão da barra superior, à esquerda.
+
+---
+
+## v55 - Correção de navegação textual ao reabrir projeção
+
+### PT-BR
+- Corrigido o fluxo de navegação ao vivo de **músicas** e **Bíblia** após fechar a projeção com `Esc` ou alternar o botão **Projetar**.
+- Ao dar duplo clique novamente em um slide/versículo, o sistema rearma a navegação textual e força a atualização do painel projetado, não apenas da prévia.
+- As setas agora devem avançar/retroceder tanto na prévia quanto na projeção mesmo depois de fechar e abrir a projeção novamente.
+- O botão **Salvar** do editor de músicas permanece como o primeiro botão da barra superior.
+
+### EN
+- Fixed live text navigation for **songs** and **Bible** after closing projection with `Esc` or toggling **Project**.
+- Double-clicking a slide/verse again rearms text navigation and forces the projected panel to update, not only the preview.
+- Arrow keys should now move forward/backward in both preview and projection after closing and reopening the projection.
+- The **Save** button in the song editor remains the first button in the top toolbar.
+
+### v56 - Correção de navegação textual após reabrir a projeção
+
+PT-BR: A navegação por setas em músicas e Bíblia agora força a atualização direta do painel real de projeção após fechar/reabrir a saída. Isso evita o caso em que a prévia avançava, mas o telão permanecia preso no primeiro slide/versículo até alternar o botão Projetar.
+
+EN: Arrow-key navigation for songs and Bible now forces the real projection panel to refresh after closing/reopening the output window. This prevents the preview from advancing while the projector stays stuck on the first slide/verse until the Project button is toggled.

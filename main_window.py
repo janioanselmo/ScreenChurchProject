@@ -4,7 +4,7 @@ import shutil
 import sqlite3
 from functools import partial
 
-from PyQt5.QtCore import QSize, QSettings, QTimer, Qt
+from PyQt5.QtCore import QEvent, QSize, QSettings, QTimer, Qt
 from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtWidgets import (
     QAction,
@@ -111,6 +111,7 @@ class MainWindow(
         self.song_default_background_path = ""
         self._updating_song_form = False
         self.bible_text_case = "normal"
+        self.active_text_navigation = {}
 
         self.projection_window = ProjectionWindow()
         self.projection_window.projectionHidden.connect(self.handle_projection_hidden)
@@ -139,6 +140,7 @@ class MainWindow(
         self.refresh_all_lists()
         self.refresh_target_panel_combo()
         self.image_timer.start()
+        QApplication.instance().installEventFilter(self)
         self.update_global_status()
 
     # ------------------------------------------------------------------
@@ -297,8 +299,6 @@ class MainWindow(
         self.song_section_list.setWrapping(True)
         self.song_section_list.setGridSize(QSize(230, 135))
         self.song_section_list.setMinimumHeight(260)
-        self.song_section_list.itemDoubleClicked.connect(lambda _item: self.send_song_section_to_preview())
-
         self.bible_version_combo = QComboBox()
         self.bible_book_edit = QLineEdit()
         self.bible_chapter_edit = QLineEdit()
@@ -461,7 +461,7 @@ class MainWindow(
         slides_layout.addWidget(QLabel("Slides"))
         self.song_section_list.setViewMode(QListWidget.ListMode)
         self.song_section_list.setMinimumHeight(220)
-        self.song_section_list.itemDoubleClicked.connect(lambda _item: self.send_song_section_to_preview())
+        self.song_section_list.itemDoubleClicked.connect(lambda _item: self.project_selected_song_section_live())
         slides_layout.addWidget(self.song_section_list, 1)
 
         action_row = QHBoxLayout()
@@ -689,15 +689,36 @@ class MainWindow(
         self.bible_dialog.raise_()
         self.bible_dialog.activateWindow()
 
+    def eventFilter(self, watched, event):
+        """Capture live text navigation even when lists own the keyboard focus."""
+        if event.type() == QEvent.KeyPress and self.is_projection_active():
+            key = event.key()
+            if key in (Qt.Key_Right, Qt.Key_Down, Qt.Key_PageDown):
+                if self.handle_live_text_navigation(1):
+                    event.accept()
+                    return True
+            if key in (Qt.Key_Left, Qt.Key_Up, Qt.Key_PageUp):
+                if self.handle_live_text_navigation(-1):
+                    event.accept()
+                    return True
+        return super().eventFilter(watched, event)
+
+    def handle_live_text_navigation(self, step):
+        """Navigate projected song slides or Bible verses with arrow keys."""
+        focus_widget = QApplication.focusWidget()
+        if isinstance(focus_widget, (QLineEdit, QTextEdit)):
+            return False
+        return self.navigate_live_text_content(step)
+
     def keyPressEvent(self, event):
         """Handle live navigation and Bible quick search keyboard workflows."""
         if self.is_projection_active():
             if event.key() in (Qt.Key_Right, Qt.Key_Down, Qt.Key_PageDown):
-                if self.navigate_live_text_content(1):
+                if self.handle_live_text_navigation(1):
                     event.accept()
                     return
             if event.key() in (Qt.Key_Left, Qt.Key_Up, Qt.Key_PageUp):
-                if self.navigate_live_text_content(-1):
+                if self.handle_live_text_navigation(-1):
                     event.accept()
                     return
 
@@ -728,6 +749,17 @@ class MainWindow(
         """Advance/rewind live song slides or Bible verses while projection is active."""
         if not self.is_projection_active():
             return False
+
+        active = getattr(self, "active_text_navigation", {}) or {}
+        active_panel = active.get("panel_index")
+        active_descriptor = active.get("descriptor")
+        if isinstance(active_panel, int) and isinstance(active_descriptor, dict):
+            navigation = dict((active_descriptor.get("options") or {}).get("_navigation", {}) or {})
+            kind = active_descriptor.get("kind", "")
+            if kind == "letra" and navigation.get("type") == "song":
+                return self.navigate_live_song(active_panel, active_descriptor, navigation, step)
+            if kind == "bíblia" and navigation.get("type") == "bible":
+                return self.navigate_live_bible(active_panel, active_descriptor, navigation, step)
 
         for panel_index in self.live_navigation_candidate_indices():
             descriptor = self.live_descriptor_for_panel(panel_index)
@@ -760,10 +792,76 @@ class MainWindow(
             return self.projection_window.media_widgets[panel_index].media_descriptor()
         return {"type": "empty"}
 
+    def force_text_descriptor_to_projection(self, panel_index, descriptor):
+        """Force a text descriptor into the visible projection panel.
+
+        This method intentionally bypasses the generic media mirroring path.
+        After the projection window is closed with Esc and opened again, Qt can
+        keep the previous QLabel contents painted in the output window while the
+        operator preview advances correctly.  To avoid that stale projection
+        state, every keyboard navigation step rebuilds the projection layout,
+        reloads the text descriptor directly on the real output widget and
+        forces a repaint of the affected widgets.
+        """
+        if not self.is_projection_active():
+            return False
+        if panel_index < 0 or panel_index >= len(self.media_widgets):
+            return False
+
+        descriptor = dict(descriptor or {})
+        self.projection_window.set_panel_count(len(self.media_widgets))
+        self.projection_window.set_panel_sizes(self.panel_sizes())
+        QApplication.processEvents()
+
+        if panel_index >= len(self.projection_window.media_widgets):
+            return False
+
+        target = self.projection_window.media_widgets[panel_index]
+        target.setUpdatesEnabled(True)
+        target.clear_media()
+        target.load_from_descriptor(descriptor)
+        target.set_blackout(False)
+        target.show()
+        target.updateGeometry()
+        target.update()
+        target.repaint()
+
+        if hasattr(target, "text_label"):
+            target.text_label.update()
+            target.text_label.repaint()
+        if hasattr(target, "text_page"):
+            target.text_page.update()
+            target.text_page.repaint()
+
+        self.projection_window.update()
+        self.projection_window.repaint()
+        QApplication.processEvents()
+
+        while len(self.live_descriptors) <= panel_index:
+            self.live_descriptors.append({"type": "empty"})
+        self.live_descriptors[panel_index] = descriptor
+        self.update_global_status()
+        return True
+
     def replace_live_text_descriptor(self, panel_index, descriptor):
-        """Replace the preview and live panel with a navigated text descriptor."""
+        """Replace the preview and projected panel with a navigated text descriptor."""
         self.load_descriptor_to_preview(descriptor, panel_index)
-        self.send_panel_to_live(panel_index)
+        self.active_text_navigation = {
+            "panel_index": panel_index,
+            "descriptor": descriptor,
+        }
+        if not self.is_projection_active():
+            self.toggle_fullscreen()
+
+        # Always force the live text panel after opening or while already live.
+        # The delayed calls cover the Qt show/raise cycle after reopening the
+        # projection with Esc/F5 and keep arrow navigation reflected on the
+        # projector, not only on the operator preview.
+        self.force_text_descriptor_to_projection(panel_index, descriptor)
+        QTimer.singleShot(0, partial(self.force_text_descriptor_to_projection, panel_index, dict(descriptor)))
+        QTimer.singleShot(80, partial(self.force_text_descriptor_to_projection, panel_index, dict(descriptor)))
+        QTimer.singleShot(180, partial(self.force_text_descriptor_to_projection, panel_index, dict(descriptor)))
+        self.save_session()
 
     def navigate_live_song(self, panel_index, descriptor, navigation, step):
         title = str(navigation.get("title", "")).strip()
@@ -922,6 +1020,42 @@ class MainWindow(
             "footer": version.get("name", "Bíblia"),
             "options": options,
         }
+
+    def project_text_descriptor_live(self, descriptor, panel_index, message="Texto projetado."):
+        """Project a song or Bible text descriptor and arm keyboard navigation.
+
+        Text modules use a direct-live workflow: a double-click loads the
+        descriptor into the selected preview panel, opens/synchronizes the
+        projection and stores the descriptor as the active keyboard-navigation
+        target. This avoids losing arrow navigation after ESC/close and a new
+        double-click projection cycle.
+        """
+        if not isinstance(descriptor, dict) or descriptor.get("type") != "text":
+            return False
+        if panel_index < 0 or panel_index >= len(self.media_widgets):
+            return False
+
+        self.load_descriptor_to_preview(descriptor, panel_index)
+        self.active_text_navigation = {
+            "panel_index": panel_index,
+            "descriptor": descriptor,
+        }
+
+        if not self.is_projection_active():
+            self.toggle_fullscreen()
+
+        self.force_text_descriptor_to_projection(panel_index, descriptor)
+        QTimer.singleShot(0, partial(self.force_text_descriptor_to_projection, panel_index, dict(descriptor)))
+        QTimer.singleShot(80, partial(self.force_text_descriptor_to_projection, panel_index, dict(descriptor)))
+        QTimer.singleShot(180, partial(self.force_text_descriptor_to_projection, panel_index, dict(descriptor)))
+
+        if self.is_projection_active():
+            self.projection_window.activateWindow()
+            self.projection_window.setFocus(Qt.OtherFocusReason)
+
+        self.show_status_message(message, 2200)
+        self.save_session()
+        return True
 
     # ------------------------------------------------------------------
     # Shortcuts and projection
@@ -1097,8 +1231,11 @@ class MainWindow(
         self.project_all_previews_to_output(announce=False)
 
     def handle_projection_hidden(self):
+        self.projection_sync_timer.stop()
         self.restore_preview_video_outputs()
         self.fullscreen_button.setText("▶ Projetar")
+        self.activateWindow()
+        self.raise_()
         self.save_session()
         self.update_global_status()
 

@@ -582,7 +582,7 @@ class BibleNavigatorDialog(QDialog):
         self.reference_label.setStyleSheet("color: #d7d7d7;")
         self.verse_list = QListWidget()
         self.verse_list.itemClicked.connect(self.handle_verse_item_clicked)
-        self.verse_list.itemDoubleClicked.connect(lambda _item: self.load_selected_preview())
+        self.verse_list.itemDoubleClicked.connect(lambda _item: self.project_selected_verse_live())
         left.addWidget(title)
         left.addWidget(self.reference_label)
         left.addWidget(self.verse_list, 1)
@@ -1111,6 +1111,18 @@ class BibleNavigatorDialog(QDialog):
         descriptor = self.selected_descriptor()
         if descriptor:
             self.main_window.load_descriptor_to_preview(descriptor, self.target_index())
+
+    def project_selected_verse_live(self):
+        """Project the selected Bible verse immediately and enable arrow navigation."""
+        descriptor = self.selected_descriptor()
+        if not descriptor:
+            return
+        panel_index = self.target_index()
+        self.main_window.project_text_descriptor_live(
+            descriptor,
+            panel_index,
+            f"Versículo projetado: {descriptor.get('title', 'Bíblia')}",
+        )
 
     def send_selected_live(self):
         """Compatibility method: Bible actions prepare preview only.

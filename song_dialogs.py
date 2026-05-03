@@ -732,13 +732,14 @@ class SongEditorDialog(QDialog):
         self.more_btn.setToolTip("Mais opções de edição")
 
         toolbar_groups = [
+            [self.save_btn],
             [self.case_btn],
             [self.align_left_btn, self.align_center_btn, self.align_justify_btn],
             [self.font_smaller_btn, self.font_larger_btn, self.text_color_btn],
             [self.text_box_btn, self.text_box_color_btn],
             [self.default_bg_image_btn, self.default_bg_video_btn, self.default_bg_clear_btn],
             [self.slide_bg_image_btn, self.slide_bg_video_btn, self.slide_bg_clear_btn],
-            [self.save_btn, self.more_btn],
+            [self.more_btn],
         ]
         for group in toolbar_groups:
             for btn in group:

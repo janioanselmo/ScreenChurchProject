@@ -1,0 +1,40 @@
+{
+  "schema_version": 3,
+  "type": "screen_church_session",
+  "monitor_index": 1,
+  "loop": true,
+  "blackout": false,
+  "operation_mode": false,
+  "panel_sizes": [
+    [
+      1920,
+      1080
+    ]
+  ],
+  "preview_descriptors": [
+    {
+      "type": "empty"
+    }
+  ],
+  "live_descriptors": [
+    {
+      "type": "empty"
+    }
+  ],
+  "playlists": [
+    []
+  ],
+  "playlist_positions": [
+    0
+  ],
+  "recent_media": [
+    [
+      "media/backgrounds/images/VIDEO24.jpg",
+      "media/backgrounds/images/VIDEO26.jpg",
+      "media/backgrounds/images/VIDEO24_2.jpg",
+      "F:\\Meu Pessoal\\Centro Evangélico Missões\\Ministério de Multimídia\\Referências\\Mídias\\Echo (feat. Tauren Wells) - Live Elevation Worsh.mp4",
+      "F:\\Meu Pessoal\\Centro Evangélico Missões\\Ministério de Multimídia\\Referências\\Mídias\\Burkina Faso.mp4"
+    ]
+  ],
+  "service_items": []
+}

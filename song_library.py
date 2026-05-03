@@ -421,11 +421,33 @@ class SongLibraryMixin:
             self.load_descriptor_to_preview(descriptor, panel_index)
 
     def send_song_section_to_live(self):
-        """Compatibility method: song actions prepare preview only.
+        """Compatibility method for older buttons.
 
-        Use the main toolbar buttons ⬆ or ⬆⬆ to send content live.
+        Song slides now use a direct live workflow: double-clicking a slide
+        loads it to the selected lyrics destination and opens/synchronizes the
+        projection automatically.
         """
-        self.send_song_section_to_preview()
+        self.project_selected_song_section_live()
+
+    def project_selected_song_section_live(self):
+        """Project the selected song slide immediately.
+
+        This rule is intentionally limited to the lyrics module. Media and
+        Bible actions keep their current preparation flow. For lyrics, a
+        double-click is an operation command: load the selected slide into the
+        configured lyrics destination, open the projection if needed, and make
+        keyboard arrows navigate the currently projected song.
+        """
+        descriptor = self.selected_song_section_descriptor()
+        if not descriptor.get("body"):
+            return
+
+        panel_index = self.song_target_panel_index()
+        self.project_text_descriptor_live(
+            descriptor,
+            panel_index,
+            "Slide da música projetado.",
+        )
 
     def add_song_section_to_service(self):
         descriptor = self.selected_song_section_descriptor()
