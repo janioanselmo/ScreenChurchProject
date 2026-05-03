@@ -1028,3 +1028,19 @@ This is a visual/organization update only and does not change saving, projection
   - **🖼 Song / 🎞 Song / 🗑 Song** for the default song background;
   - **🖼 Slide / 🎞 Slide / 🗑 Slide** for the selected slide background.
 - Thick colored borders were removed from color buttons, keeping the toolbar visually consistent.
+
+### v50 — Correção de áudio contínuo no Preview
+
+- A Projeção continua usando player próprio sincronizado, evitando a tela preta do VLC.
+- O player da Projeção agora é inicializado sem saída de áudio (`--no-audio`), em vez de ficar alternando mute/volume durante a sincronização.
+- O Preview permanece como a única fonte de áudio e não é mais afetado pelo player da Projeção.
+- A política de áudio foi simplificada para evitar que o som do Preview só apareça ao pressionar Play repetidamente.
+- A sincronização de vídeo continua preservando posição, play/pause e slider em tempo real.
+
+### v50 — Continuous Preview audio fix
+
+- Projection still uses its own synchronized player to avoid VLC black-screen issues.
+- The Projection player is now created without audio output (`--no-audio`) instead of repeatedly toggling mute/volume during synchronization.
+- Preview remains the only audio source and is no longer affected by the Projection player.
+- The audio policy was simplified to avoid cases where Preview audio only came back after repeatedly pressing Play.
+- Video synchronization still preserves position, play/pause state and real-time slider control.

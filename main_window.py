@@ -1009,9 +1009,9 @@ class MainWindow(
         """
         for widget in self.media_widgets:
             if widget.current_type == "video":
-                widget.set_muted(False)
+                widget.ensure_preview_audio()
         for widget in self.projection_window.media_widgets:
-            if widget.current_type == "video":
+            if widget.current_type == "video" and not widget._muted:
                 widget.set_muted(True)
 
     def selected_projection_part_indices(self):
@@ -1071,6 +1071,8 @@ class MainWindow(
             mirrored += 1
 
         self.enforce_video_audio_policy()
+        QTimer.singleShot(100, self.enforce_video_audio_policy)
+        QTimer.singleShot(500, self.enforce_video_audio_policy)
         self.update_global_status()
         self.save_session()
         if announce:
@@ -1146,7 +1148,7 @@ class MainWindow(
         preview_width, preview_height = self.preview_size_for_output(output_width, output_height)
         media_widget.set_panel_size(preview_width, preview_height)
         media_widget.set_loop_enabled(self.loop_checkbox.isChecked())
-        media_widget.set_muted(False)
+        media_widget.ensure_preview_audio()
         media_widget.statusChanged.connect(partial(self.refresh_panel_status, index))
         media_widget.mediaError.connect(self.show_media_error)
 
@@ -1311,7 +1313,7 @@ class MainWindow(
         if not self.media_widgets[panel_index].load_media(filename):
             QMessageBox.warning(self, "Não foi possível carregar", "O arquivo selecionado não pôde ser carregado.")
             return False
-        self.media_widgets[panel_index].set_muted(False)
+        self.media_widgets[panel_index].ensure_preview_audio()
         self.enforce_video_audio_policy()
         if track_recent:
             self.record_recent_media(panel_index, filename)
@@ -1369,8 +1371,9 @@ class MainWindow(
             and os.path.abspath(target.current_path or "")
             == os.path.abspath(source.current_path or "")
         )
-        source.set_muted(False)
-        target.set_muted(True)
+        source.ensure_preview_audio()
+        if not target._muted:
+            target.set_muted(True)
         if not same_media:
             target.load_from_descriptor(descriptor)
             target.set_muted(True)
@@ -2156,7 +2159,7 @@ class MainWindow(
             descriptor = self.resolve_descriptor_paths(descriptor)
             self.media_widgets[index].load_from_descriptor(descriptor)
             if self.media_widgets[index].current_type == "video":
-                self.media_widgets[index].set_muted(False)
+                self.media_widgets[index].ensure_preview_audio()
             self.refresh_panel_status(index)
         live = [self.resolve_descriptor_paths(item) for item in (data.get("live_descriptors") or [{"type": "empty"} for _ in self.media_widgets])]
         self.live_descriptors = live[:len(self.media_widgets)] + [{"type": "empty"} for _ in range(len(self.media_widgets) - len(live))]

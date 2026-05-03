@@ -38,6 +38,7 @@ class MediaWidget(QWidget):
 
         self.panel_number = panel_number
         self.show_overlay = show_overlay
+        self.audio_output_enabled = bool(show_overlay)
         self.current_path = ""
         self.current_type = ""
         self.current_backend = ""
@@ -158,9 +159,14 @@ class MediaWidget(QWidget):
         if vlc is None:
             return
         try:
-            self.vlc_instance = vlc.Instance(
-                "--quiet", "--no-video-title-show", "--no-snapshot-preview"
-            )
+            args = ["--quiet", "--no-video-title-show", "--no-snapshot-preview"]
+            if not self.audio_output_enabled:
+                # Projection/background panels never own audio. Using a VLC
+                # instance without audio is more reliable than repeatedly
+                # muting a normal player, and prevents conflicts with the
+                # audible preview player on Windows.
+                args.append("--no-audio")
+            self.vlc_instance = vlc.Instance(*args)
             self.vlc_player = self.vlc_instance.media_player_new()
             self.bg_vlc_player = self.vlc_instance.media_player_new()
             self._vlc_available = True
@@ -361,19 +367,19 @@ class MediaWidget(QWidget):
         # Preserve the desired audio state across media reloads. Projection
         # widgets are muted before loading, and some backends reset audio
         # when a new media object is attached.
-        self.set_muted(self._muted)
+        self.set_muted(self._muted, force=True)
 
         if self._vlc_available and self.load_video_with_vlc(filepath):
             self.current_backend = "vlc"
             self.stacked.setCurrentWidget(self.vlc_video_widget)
-            self.set_muted(self._muted)
+            self.set_muted(self._muted, force=True)
             QTimer.singleShot(100, self.play)
             self.update_overlay_text()
             return True
 
         self.current_backend = "qt"
         self.stacked.setCurrentWidget(self.video_widget)
-        self.set_muted(self._muted)
+        self.set_muted(self._muted, force=True)
         return self.load_video_with_qt(filepath)
 
     def load_video_with_vlc(self, filepath):
@@ -383,7 +389,7 @@ class MediaWidget(QWidget):
             self._attach_vlc_to_widget()
             media = self.vlc_instance.media_new(filepath)
             self.vlc_player.set_media(media)
-            self.set_muted(self._muted)
+            self.set_muted(self._muted, force=True)
             return True
         except Exception as exc:
             self.mediaError.emit(
@@ -412,7 +418,7 @@ class MediaWidget(QWidget):
         media_url = QUrl.fromLocalFile(filepath)
         self.media_player.setVideoOutput(self.video_widget)
         self.media_player.setMedia(QMediaContent(media_url))
-        self.set_muted(self._muted)
+        self.set_muted(self._muted, force=True)
         QTimer.singleShot(0, self.play)
         self.update_overlay_text()
         return True
@@ -779,14 +785,27 @@ class MediaWidget(QWidget):
     def set_loop_enabled(self, enabled):
         self.loop_enabled = enabled
 
-    def set_muted(self, muted):
-        """Force the audio state for this widget.
+    def set_muted(self, muted, force=False):
+        """Set the audio policy for this panel.
 
-        Projection widgets call this with True and must remain silent even
-        after a video reload. Setting volume to zero in addition to mute helps
-        VLC/Qt backends that may briefly reset the mute flag.
+        Operator preview panels own the only audible audio output. Projection
+        panels are created with VLC ``--no-audio`` and should not repeatedly
+        toggle VLC mute/volume, because that can disturb the preview audio on
+        some Windows/VLC combinations.
         """
         muted = bool(muted)
+
+        if not self.audio_output_enabled:
+            self._muted = True
+            self.media_player.setMuted(True)
+            self.media_player.setVolume(0)
+            # No VLC audio output exists for projection widgets. Avoid calling
+            # audio_set_mute/audio_set_volume on every sync tick.
+            return
+
+        if not force and self._muted == muted:
+            return
+
         self._muted = muted
         self.media_player.setMuted(muted)
         self.media_player.setVolume(0 if muted else 100)
@@ -800,6 +819,20 @@ class MediaWidget(QWidget):
             self.bg_vlc_player.audio_set_mute(True)
             try:
                 self.bg_vlc_player.audio_set_volume(0)
+            except Exception:
+                pass
+
+    def ensure_preview_audio(self):
+        """Reassert audible audio for operator preview panels only."""
+        if not self.audio_output_enabled or self.current_type != "video":
+            return
+        self._muted = False
+        self.media_player.setMuted(False)
+        self.media_player.setVolume(100)
+        if self.vlc_player:
+            self.vlc_player.audio_set_mute(False)
+            try:
+                self.vlc_player.audio_set_volume(100)
             except Exception:
                 pass
 
