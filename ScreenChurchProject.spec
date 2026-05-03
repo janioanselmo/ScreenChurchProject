@@ -1,15 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
+"""PyInstaller build spec for ScreenChurch.
+
+Build target: Windows GUI application without debug/terminal console.
+The VLC application itself is not bundled; install VLC Media Player 64-bit on
+machines that will reproduce videos.
+"""
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
-hiddenimports = collect_submodules('PyQt5') + ['vlc']
-datas = collect_data_files('PyQt5')
+hiddenimports = collect_submodules("PyQt5") + ["vlc"]
+datas = collect_data_files("PyQt5")
 
 
 a = Analysis(
-    ['screenChurch.py'],
+    ["screenChurch.py"],
     pathex=[],
     binaries=[],
     datas=datas,
@@ -30,7 +36,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='ScreenChurchProject',
+    name="ScreenChurch",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -50,5 +56,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='ScreenChurchProject',
+    name="ScreenChurch",
 )

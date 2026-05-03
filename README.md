@@ -6,6 +6,64 @@ Software de projeção para igrejas feito em **Python + PyQt5 + VLC**, com layou
 
 ## PT-BR
 
+
+### Build do executável e instalador Windows
+
+Esta versão já vem preparada para gerar um aplicativo Windows **sem tela de terminal/debug**.
+
+Pré-requisitos no computador de build:
+
+```text
+Python 3.11, 3.12 ou 3.13 64-bit
+VLC Media Player 64-bit
+Inno Setup 6
+```
+
+Para gerar somente o executável:
+
+```powershell
+.\build_windows.ps1
+```
+
+Saída esperada:
+
+```text
+dist\ScreenChurch\ScreenChurch.exe
+```
+
+Para gerar o executável e o instalador com Inno Setup:
+
+```powershell
+.\build_installer_windows.ps1
+```
+
+Ou dê duplo clique em:
+
+```text
+build_installer_windows.bat
+```
+
+Saída esperada:
+
+```text
+installer\Output\ScreenChurch_Setup_v1.0.0.exe
+```
+
+O arquivo `installer/ScreenChurch.iss` é o script do Inno Setup. Ele instala o programa em:
+
+```text
+%LOCALAPPDATA%\Programs\ScreenChurch
+```
+
+e cria a pasta de dados em:
+
+```text
+Documentos\ScreenChurchData
+```
+
+O VLC não é empacotado no instalador. O instalador avisa se o VLC 64-bit não estiver instalado, pois ele é necessário para reprodução confiável de vídeos.
+
+
 ### 1. Arquitetura de armazenamento
 
 A partir desta versão, os dados do ScreenChurch ficam separados do código do programa em uma pasta local chamada **ScreenChurchData**.
@@ -423,6 +481,64 @@ Ctrl+O      Abrir culto
 ---
 
 ## EN
+
+
+### Windows executable and installer build
+
+This version is ready to generate a Windows GUI application **without a debug/terminal console**.
+
+Build machine prerequisites:
+
+```text
+Python 3.11, 3.12 or 3.13 64-bit
+VLC Media Player 64-bit
+Inno Setup 6
+```
+
+To generate only the executable:
+
+```powershell
+.\build_windows.ps1
+```
+
+Expected output:
+
+```text
+dist\ScreenChurch\ScreenChurch.exe
+```
+
+To generate both the executable and the Inno Setup installer:
+
+```powershell
+.\build_installer_windows.ps1
+```
+
+Or double-click:
+
+```text
+build_installer_windows.bat
+```
+
+Expected output:
+
+```text
+installer\Output\ScreenChurch_Setup_v1.0.0.exe
+```
+
+The `installer/ScreenChurch.iss` file is the Inno Setup script. It installs the application to:
+
+```text
+%LOCALAPPDATA%\Programs\ScreenChurch
+```
+
+and creates the data folder at:
+
+```text
+Documents\ScreenChurchData
+```
+
+VLC is not bundled with the installer. The installer warns the user if VLC 64-bit is not installed because it is required for reliable video playback.
+
 
 ### 1. Storage architecture
 
