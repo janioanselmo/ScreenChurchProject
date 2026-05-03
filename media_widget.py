@@ -541,16 +541,19 @@ class MediaWidget(QWidget):
         self.stacked.setCurrentWidget(self.video_widget)
 
     def prepare_external_video_surface(self, source_widget):
-        """Prepare this panel to receive another MediaWidget's video output."""
-        self.stop_all_video()
+        """Compatibility no-op for older projection flows.
+
+        v48 uses an independent muted projection player instead of moving the
+        preview player's native video surface. Keeping this method avoids
+        breaking older callers, but it no longer rebinds any player.
+        """
         self.current_type = "video"
         self.current_path = source_widget.current_path
-        self.current_backend = f"{source_widget.current_backend}-mirror"
+        self.current_backend = source_widget.current_backend
         self.blackout_enabled = False
-        if source_widget.current_backend == "vlc":
-            self.stacked.setCurrentWidget(self.vlc_video_widget)
-        else:
-            self.stacked.setCurrentWidget(self.video_widget)
+        self.stacked.setCurrentWidget(
+            self.vlc_video_widget if source_widget.current_backend == "vlc" else self.video_widget
+        )
         self.update_overlay_text()
 
     def load_from_descriptor(self, descriptor):
@@ -625,19 +628,51 @@ class MediaWidget(QWidget):
             self.pause()
         self.update_overlay_text()
 
+    def sync_video_from(self, source_widget, tolerance_ms=650):
+        """Synchronize this muted projection video with the preview widget.
+
+        The projection owns its own player, but it never owns audio. This avoids
+        VLC black screens caused by moving native windows while keeping the
+        projected image close to the preview position/state.
+        """
+        if source_widget is None:
+            return
+        if source_widget.current_type != "video" or self.current_type != "video":
+            return
+        try:
+            source_position = int(source_widget.position_ms() or 0)
+            target_position = int(self.position_ms() or 0)
+        except (TypeError, ValueError):
+            return
+
+        if abs(source_position - target_position) > int(tolerance_ms):
+            self.set_position(source_position)
+
+        source_playing = source_widget.is_playing()
+        source_paused = source_widget.is_paused()
+        self.set_muted(True)
+        if source_playing and not self.is_playing():
+            self.play()
+            self.set_position(source_position)
+            self.set_muted(True)
+        elif source_paused and not self.is_paused():
+            self.pause()
+        self.update_overlay_text()
+
     def play(self):
         # Blackout hides the visual output, but it must not stop playback.
         # This keeps the live projection synchronized with the operator preview.
         if self.current_type != "video":
             return
+        desired_mute = not bool(self.show_overlay)
         if self.current_backend == "vlc" and self.vlc_player:
             self._attach_vlc_to_widget(self._video_output_widget or self.vlc_video_widget)
             self.vlc_player.play()
-            self.set_muted(self._muted)
+            self.set_muted(desired_mute)
             self.update_overlay_text()
             return
         self.media_player.play()
-        self.set_muted(self._muted)
+        self.set_muted(desired_mute)
 
     def pause(self):
         if self.current_type != "video":

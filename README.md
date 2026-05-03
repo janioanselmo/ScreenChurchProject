@@ -368,7 +368,7 @@ A operação usa o botão **▶ Projetar** como comando principal para reduzir c
 
 Não existe mais checkbox individual de projeção por parte. Ao projetar, todas as partes do layout são exibidas; para ocultar uma parte específica, use o **Blackout** daquela parte.
 
-Para vídeos, o botão **▶ Projetar** preserva o ponto atual da prévia. Se você assistir 10 ou 15 segundos na visualização e depois projetar, a saída sincroniza com a mesma posição/estado. A **prévia do operador permanece como única fonte de áudio**; a projeção apenas espelha o vídeo no telão sem criar uma segunda saída sonora. Para evitar tela preta na primeira projeção, o ScreenChurch aguarda a superfície do telão ficar visível antes de mover a saída de vídeo do preview, sem executar Stop/Play e sem mutar o áudio.
+Para vídeos, o botão **▶ Projetar** preserva o ponto atual da prévia. A prévia do operador permanece como fonte de áudio; a projeção usa um player próprio sempre sem áudio, sincronizado com a posição/estado da prévia. Essa arquitetura evita áudio duplicado e também evita a tela preta causada pela troca da superfície VLC enquanto o vídeo já está tocando.
 
 ### 12. Navegação ao vivo por teclado
 
@@ -957,3 +957,74 @@ Note: during video projection, the real player belongs to the Preview. Play/Paus
 - The layout edit button now allows editing or removing the selected preset.
 - The first projection activation now delays VLC surface binding to avoid black output without using internal Stop/Play.
 - The rule remains: **Preview is the real audio/video player** and **Project only moves the visual output to the screen**.
+
+---
+
+### v47 — Padronização dos ícones do editor de músicas
+
+A janela **Editar música** recebeu uma padronização visual na barra superior:
+
+- botões com tamanho fixo e aparência consistente;
+- ícones alinhados ao mesmo padrão visual usado na Bíblia;
+- botão de limpeza padronizado como **🗑**;
+- indicadores de cor da letra e da caixa de texto agora usam borda colorida, evitando botões claros ou pouco visíveis;
+- tooltips preservados para facilitar o uso.
+
+A alteração é apenas visual/organizacional e não muda a lógica de salvamento, projeção ou reprodução.
+
+### v47 — Song editor icon standardization
+
+The **Edit song** window now has a standardized top toolbar:
+
+- fixed-size buttons with consistent appearance;
+- icons aligned with the same visual style used in the Bible window;
+- clear/remove actions standardized as **🗑**;
+- text color and text box color buttons now use colored borders, avoiding overly bright or unclear buttons;
+- tooltips preserved for easier operation.
+
+This is a visual/organization update only and does not change saving, projection or playback logic.
+
+
+### v48 — Projeção com player sincronizado e editor de música mais limpo
+
+- A projeção de vídeo voltou a usar um player próprio, porém sempre sem áudio.
+- O Preview permanece como fonte de áudio e controle principal.
+- A projeção sincroniza tempo e estado com o Preview, evitando áudio duplicado e tela preta ao clicar em **Projetar** com o vídeo já em execução.
+- O slider do Preview continua controlando o tempo e a projeção acompanha em tempo real.
+- A barra superior do **Editar música** foi reorganizada para concentrar os controles em uma única linha, no estilo da Bíblia/Holyrics.
+- Os botões de fundo padrão e fundo por slide foram movidos para a barra superior.
+
+### v48 — Synchronized projection player and cleaner song editor
+
+- Video projection now uses its own player, but it is always muted.
+- The Preview remains the audio source and main playback controller.
+- Projection synchronizes time and state from Preview, avoiding duplicated audio and the black screen issue when projecting a video already playing.
+- The Preview slider keeps controlling the video position and projection follows in real time.
+- The **Edit song** top toolbar was reorganized to keep controls in one clean row, closer to the Bible/Holyrics style.
+- Default-background and per-slide-background actions were moved to the top toolbar.
+
+### v49 — Correção do áudio do Preview e botões claros no editor de músicas
+
+- O Preview foi reforçado como a fonte principal de áudio.
+- A Projeção continua usando player próprio sincronizado, porém sempre sem áudio.
+- A política de áudio agora é aplicada após projetar, sincronizar, dar play, pausar, parar e mover a barra de progresso.
+- A barra superior do **Editar música** agora usa ícones com texto curto para reduzir ambiguidade:
+  - **🎨 A** para cor da letra;
+  - **▣ Box** para ativar/desativar a caixa atrás da letra;
+  - **🎨 Box** para cor da caixa;
+  - **🖼 Música / 🎞 Música / 🗑 Música** para fundo padrão da música;
+  - **🖼 Slide / 🎞 Slide / 🗑 Slide** para fundo do slide selecionado.
+- Foram removidas as bordas coloridas grossas dos botões de cor, mantendo o estilo visual uniforme da barra.
+
+### v49 — Preview audio fix and clearer song editor buttons
+
+- The Preview is reinforced as the main audio source.
+- Projection still uses its own synchronized player, but it is always silent.
+- The audio policy is now applied after projecting, syncing, playing, pausing, stopping and seeking.
+- The **Edit song** toolbar now uses icons with short labels to reduce ambiguity:
+  - **🎨 A** for text color;
+  - **▣ Box** for enabling/disabling the text box;
+  - **🎨 Box** for text box color;
+  - **🖼 Song / 🎞 Song / 🗑 Song** for the default song background;
+  - **🖼 Slide / 🎞 Slide / 🗑 Slide** for the selected slide background.
+- Thick colored borders were removed from color buttons, keeping the toolbar visually consistent.

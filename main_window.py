@@ -119,6 +119,10 @@ class MainWindow(
         self.image_timer.setInterval(IMAGE_SLIDE_INTERVAL_MS)
         self.image_timer.timeout.connect(self.advance_image_playlists)
 
+        self.projection_sync_timer = QTimer(self)
+        self.projection_sync_timer.setInterval(250)
+        self.projection_sync_timer.timeout.connect(self.sync_projection_video_players)
+
         self.setWindowTitle("ScreenChurch Project")
         self.setGeometry(80, 80, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
         self.statusBar().setStyleSheet("padding: 2px 8px;")
@@ -975,30 +979,40 @@ class MainWindow(
         self.projection_window.set_panel_sizes(self.panel_sizes())
         self.projection_window.show_projection()
         QApplication.processEvents()
+        self.project_all_previews_to_output(announce=False)
+        self.enforce_video_audio_policy()
+        self.projection_sync_timer.start()
         self.fullscreen_button.setText("⏹")
         self.save_session()
         self.update_global_status()
 
-        # VLC needs the target native windows to be visible and fully created
-        # before the preview player is reattached to the projection surface.
-        # Binding immediately is what caused the first projection to show a
-        # black frame while the audio kept playing.  We therefore delay the
-        # first bind slightly and do a second light bind as a safety net,
-        # without issuing stop/play/mute commands.
-        QTimer.singleShot(160, self.bind_projection_surfaces)
-        QTimer.singleShot(420, self.bind_projection_surfaces)
-
     def exit_fullscreen(self):
         if not self.is_projection_active():
             return
-        self.restore_preview_video_outputs()
+        self.projection_sync_timer.stop()
         self.projection_window.hide_projection()
+        self.enforce_video_audio_policy()
         self.fullscreen_button.setText("▶ Projetar")
         self.save_session()
         self.update_global_status()
 
     def is_projection_active(self):
         return self.projection_window.isVisible()
+
+    def enforce_video_audio_policy(self):
+        """Keep the preview audible and the projection silent.
+
+        The application now uses two synchronized video players: the operator
+        preview is the audio master, while the projection player is only a
+        visual mirror. This method centralizes that rule so projection sync,
+        playback commands and media reloads cannot accidentally mute preview.
+        """
+        for widget in self.media_widgets:
+            if widget.current_type == "video":
+                widget.set_muted(False)
+        for widget in self.projection_window.media_widgets:
+            if widget.current_type == "video":
+                widget.set_muted(True)
 
     def selected_projection_part_indices(self):
         """Return all panel indices that will be projected.
@@ -1010,12 +1024,12 @@ class MainWindow(
         return list(range(len(self.media_widgets)))
 
     def project_all_previews_to_output(self, announce=True):
-        """Mirror all preview panels to the projection output.
+        """Copy preview content to the projection output.
 
-        The operator preview remains the only real video/audio player.  When
-        projection is active, the VLC/Qt output surface is moved to the
-        projection widget only after the projection window is visible.  This
-        method must not call stop/play/mute for the preview video.
+        v48 returns to two independent video players because VLC on Windows may
+        show a black frame when the same player is moved between native windows.
+        The preview player remains the only audible source; projection players
+        are always muted and synchronized to the preview position/state.
         """
         if not self.validate_panel_sizes(show_message=True):
             return False
@@ -1030,29 +1044,33 @@ class MainWindow(
 
             target = self.projection_window.media_widgets[index]
             target.set_loop_enabled(self.loop_checkbox.isChecked())
-
             descriptor = dict(source.media_descriptor())
 
             if descriptor.get("type") == "video":
-                snapshot = source.video_playback_snapshot()
-                target.prepare_external_video_surface(source)
-                target.set_blackout(False)
-                output_widget = (
-                    target.vlc_video_widget
-                    if source.current_backend == "vlc"
-                    else target.video_widget
+                descriptor["playback"] = source.video_playback_snapshot()
+                same_media = (
+                    target.current_type == "video"
+                    and os.path.abspath(target.current_path or "")
+                    == os.path.abspath(source.current_path or "")
                 )
-                source.attach_video_output_to_widget(output_widget, refresh=False)
-                descriptor["playback"] = snapshot
+                target.set_muted(True)
+                if same_media:
+                    target.sync_video_from(source, tolerance_ms=0)
+                else:
+                    target.load_from_descriptor(descriptor)
+                    target.set_muted(True)
+                    QTimer.singleShot(120, partial(target.sync_video_from, source, 0))
+                    QTimer.singleShot(420, partial(target.sync_video_from, source, 0))
             else:
-                # Non-video content can be copied safely because it has no audio.
                 target.load_from_descriptor(descriptor)
-                target.set_blackout(False)
+                target.set_muted(True)
 
+            target.set_blackout(False)
             if index < len(self.live_descriptors):
                 self.live_descriptors[index] = descriptor
             mirrored += 1
 
+        self.enforce_video_audio_policy()
         self.update_global_status()
         self.save_session()
         if announce:
@@ -1063,21 +1081,9 @@ class MainWindow(
         return True
 
     def bind_projection_surfaces(self):
-        """Bind active preview video surfaces to the visible projection window.
-
-        This is intentionally a lightweight operation: it does not play, stop,
-        pause, mute, reload media or change the playback timestamp.  Its only
-        purpose is to attach the already-running preview player to the now
-        visible projection surface.
-        """
+        """Compatibility hook: synchronize projection players from previews."""
         if not self.is_projection_active():
             return
-        if not self.validate_panel_sizes(show_message=False):
-            return
-
-        self.projection_window.set_panel_count(len(self.media_widgets))
-        self.projection_window.set_panel_sizes(self.panel_sizes())
-        QApplication.processEvents()
         self.project_all_previews_to_output(announce=False)
 
     def sync_preview_panel_to_projection(self, panel_index):
@@ -1095,12 +1101,8 @@ class MainWindow(
         self.update_global_status()
 
     def restore_preview_video_outputs(self):
-        """Return every video output to the operator preview panels."""
-        for media_widget in self.media_widgets:
-            if media_widget.current_type == "video":
-                snapshot = media_widget.video_playback_snapshot()
-                media_widget.attach_video_output_to_own_widget(refresh=False)
-                QTimer.singleShot(120, partial(media_widget.apply_video_playback_snapshot, snapshot))
+        """Compatibility no-op. Projection no longer moves preview surfaces."""
+        return
 
     def sync_preview_audio(self):
         """Backward-compatible no-op.
@@ -1113,8 +1115,8 @@ class MainWindow(
     def sync_projection_playback(self):
         """Backward-compatible no-op.
 
-        Projection no longer owns independent video playback. It only receives
-        the preview player's video output while projection is active.
+        Projection videos are synchronized by ``sync_projection_video_players``.
+        Preview remains the only audible source.
         """
         return
 
@@ -1310,6 +1312,7 @@ class MainWindow(
             QMessageBox.warning(self, "Não foi possível carregar", "O arquivo selecionado não pôde ser carregado.")
             return False
         self.media_widgets[panel_index].set_muted(False)
+        self.enforce_video_audio_policy()
         if track_recent:
             self.record_recent_media(panel_index, filename)
             self.add_to_media_library(filename)
@@ -1353,23 +1356,27 @@ class MainWindow(
             return repr(descriptor)
 
     def sync_live_video_from_preview(self, panel_index, descriptor, target):
-        """Attach the preview video output to the live surface when needed."""
+        """Synchronize the muted projection player with the preview player."""
         if not self.is_projection_active():
-            return
-        if panel_index not in set(self.selected_projection_part_indices()):
             return
         source = self.media_widgets[panel_index]
         if source.current_type != "video":
             return
-        target.prepare_external_video_surface(source)
-        output_widget = (
-            target.vlc_video_widget
-            if source.current_backend == "vlc"
-            else target.video_widget
-        )
-        source.attach_video_output_to_widget(output_widget)
         descriptor = dict(descriptor or source.media_descriptor())
         descriptor["playback"] = source.video_playback_snapshot()
+        same_media = (
+            target.current_type == "video"
+            and os.path.abspath(target.current_path or "")
+            == os.path.abspath(source.current_path or "")
+        )
+        source.set_muted(False)
+        target.set_muted(True)
+        if not same_media:
+            target.load_from_descriptor(descriptor)
+            target.set_muted(True)
+            QTimer.singleShot(120, partial(target.sync_video_from, source, 0))
+        else:
+            target.sync_video_from(source, tolerance_ms=0)
         self.live_descriptors[panel_index] = descriptor
 
     def send_panel_to_live(self, panel_index, _checked=False, announce=True):
@@ -1542,24 +1549,28 @@ class MainWindow(
         self.media_widgets[panel_index].play()
         self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
+        self.enforce_video_audio_policy()
         self.refresh_panel_status(panel_index)
 
     def pause_video(self, panel_index, _checked=False):
         self.media_widgets[panel_index].pause()
         self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
+        self.enforce_video_audio_policy()
         self.refresh_panel_status(panel_index)
 
     def stop_video(self, panel_index, _checked=False):
         self.media_widgets[panel_index].stop()
         self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
+        self.enforce_video_audio_policy()
         self.refresh_panel_status(panel_index)
 
     def seek_video(self, panel_index, delta_ms, _checked=False):
         self.media_widgets[panel_index].seek_relative(delta_ms)
         self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
+        self.enforce_video_audio_policy()
         self.refresh_panel_status(panel_index)
 
     def set_video_position_from_slider(self, panel_index, slider, value):
@@ -1568,12 +1579,14 @@ class MainWindow(
         self.media_widgets[panel_index].set_position(value)
         self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
+        self.enforce_video_audio_policy()
         self.refresh_panel_status(panel_index)
 
     def commit_video_position_from_slider(self, panel_index, slider):
         self.media_widgets[panel_index].set_position(slider.value())
         self.sync_preview_panel_to_projection(panel_index)
         self.sync_live_panel_if_matching_preview(panel_index)
+        self.enforce_video_audio_policy()
         self.refresh_panel_status(panel_index)
 
     # ------------------------------------------------------------------
@@ -2142,6 +2155,8 @@ class MainWindow(
         for index, descriptor in enumerate(descriptors[:len(self.media_widgets)]):
             descriptor = self.resolve_descriptor_paths(descriptor)
             self.media_widgets[index].load_from_descriptor(descriptor)
+            if self.media_widgets[index].current_type == "video":
+                self.media_widgets[index].set_muted(False)
             self.refresh_panel_status(index)
         live = [self.resolve_descriptor_paths(item) for item in (data.get("live_descriptors") or [{"type": "empty"} for _ in self.media_widgets])]
         self.live_descriptors = live[:len(self.media_widgets)] + [{"type": "empty"} for _ in range(len(self.media_widgets) - len(live))]
@@ -2256,6 +2271,21 @@ class MainWindow(
                 f"{media_widget.current_backend.capitalize()}"
             )
         return f"{output_size} | {preview_size}\n{label}\n{state}"
+
+    def sync_projection_video_players(self):
+        """Keep projected videos synchronized with preview videos in real time."""
+        if not self.is_projection_active():
+            return
+        total = min(len(self.media_widgets), len(self.projection_window.media_widgets))
+        for index in range(total):
+            source = self.media_widgets[index]
+            target = self.projection_window.media_widgets[index]
+            if source.current_type != "video" or target.current_type != "video":
+                continue
+            if os.path.abspath(source.current_path or "") != os.path.abspath(target.current_path or ""):
+                continue
+            target.sync_video_from(source)
+        self.enforce_video_audio_policy()
 
     @staticmethod
     def format_time(milliseconds):

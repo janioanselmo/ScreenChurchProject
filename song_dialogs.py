@@ -680,9 +680,13 @@ class SongEditorDialog(QDialog):
             "border: 1px solid #666; border-radius: 4px; padding: 4px; }"
             "QLabel { color: #f1f1f1; }"
             "QPushButton { background: #4e4e4e; color: #ffffff; border: 1px solid #707070; "
-            "border-radius: 4px; padding: 6px 10px; }"
+            "border-radius: 4px; padding: 6px 8px; }"
             "QPushButton:hover { background: #5f5f5f; }"
             "QPushButton:checked { background: #2f6fa3; border: 1px solid #86c5ff; }"
+            "QPushButton#toolbarButton { min-width: 58px; min-height: 34px; "
+            "max-height: 34px; padding: 0 10px; font-size: 13px; }"
+            "QPushButton#dangerButton { background: #5a3f3f; border: 1px solid #8a5c5c; }"
+            "QPushButton#dangerButton:hover { background: #704b4b; }"
         )
 
         root = QVBoxLayout(self)
@@ -691,50 +695,61 @@ class SongEditorDialog(QDialog):
 
         toolbar = QHBoxLayout()
         toolbar.setSpacing(6)
-        self.save_btn = QPushButton("💾")
-        self.save_btn.setToolTip("Salvar música")
-        self.align_left_btn = QPushButton("☰")
-        self.align_left_btn.setToolTip("Alinhar à esquerda")
-        self.align_center_btn = QPushButton("≡")
-        self.align_center_btn.setToolTip("Centralizar")
-        self.align_justify_btn = QPushButton("☷")
-        self.align_justify_btn.setToolTip("Justificar")
-        self.case_btn = QPushButton("Aa")
+        self.case_btn = QPushButton("Aa Normal")
         self.case_btn.setToolTip("Alternar caixa: normal, maiúsculo e minúsculo")
+        self.align_left_btn = QPushButton("☰")
+        self.align_left_btn.setToolTip("Alinhar texto à esquerda")
+        self.align_center_btn = QPushButton("≡")
+        self.align_center_btn.setToolTip("Centralizar texto")
+        self.align_justify_btn = QPushButton("▦")
+        self.align_justify_btn.setToolTip("Justificar texto")
         self.font_smaller_btn = QPushButton("A−")
         self.font_smaller_btn.setToolTip("Diminuir fonte")
         self.font_larger_btn = QPushButton("A+")
         self.font_larger_btn.setToolTip("Aumentar fonte")
-        self.text_color_btn = QPushButton("🎨")
+        self.text_color_btn = QPushButton("🎨 A")
         self.text_color_btn.setToolTip("Cor da letra")
-        self.text_box_btn = QPushButton("▣")
+        self.text_box_btn = QPushButton("▣ Box")
         self.text_box_btn.setToolTip("Mostrar/ocultar caixa atrás da letra")
         self.text_box_btn.setCheckable(True)
-        self.text_box_color_btn = QPushButton("▰")
-        self.text_box_color_btn.setToolTip("Cor da caixa de texto")
-        self.more_btn = QPushButton("⋮")
+        self.text_box_color_btn = QPushButton("🎨 Box")
+        self.text_box_color_btn.setToolTip("Cor da caixa atrás da letra")
+        self.default_bg_image_btn = QPushButton("🖼 Música")
+        self.default_bg_image_btn.setToolTip("Imagem como fundo padrão da música")
+        self.default_bg_video_btn = QPushButton("🎞 Música")
+        self.default_bg_video_btn.setToolTip("Vídeo como fundo padrão da música")
+        self.default_bg_clear_btn = QPushButton("🗑 Música")
+        self.default_bg_clear_btn.setToolTip("Remover fundo padrão da música")
+        self.slide_bg_image_btn = QPushButton("🖼 Slide")
+        self.slide_bg_image_btn.setToolTip("Imagem apenas no slide selecionado")
+        self.slide_bg_video_btn = QPushButton("🎞 Slide")
+        self.slide_bg_video_btn.setToolTip("Vídeo apenas no slide selecionado")
+        self.slide_bg_clear_btn = QPushButton("🗑 Slide")
+        self.slide_bg_clear_btn.setToolTip("Remover fundo do slide selecionado")
+        self.save_btn = QPushButton("💾")
+        self.save_btn.setToolTip("Salvar música")
+        self.more_btn = QPushButton("⋯")
         self.more_btn.setToolTip("Mais opções de edição")
 
-        for btn in (
-            self.save_btn,
-            self.align_left_btn,
-            self.align_center_btn,
-            self.align_justify_btn,
-            self.case_btn,
-            self.font_smaller_btn,
-            self.font_larger_btn,
-            self.text_color_btn,
-            self.text_box_btn,
-            self.text_box_color_btn,
-            self.more_btn,
-        ):
-            btn.setFixedHeight(34)
-            toolbar.addWidget(btn)
-        toolbar.addSpacing(14)
-        toolbar.addWidget(QLabel("Fonte:"))
+        toolbar_groups = [
+            [self.case_btn],
+            [self.align_left_btn, self.align_center_btn, self.align_justify_btn],
+            [self.font_smaller_btn, self.font_larger_btn, self.text_color_btn],
+            [self.text_box_btn, self.text_box_color_btn],
+            [self.default_bg_image_btn, self.default_bg_video_btn, self.default_bg_clear_btn],
+            [self.slide_bg_image_btn, self.slide_bg_video_btn, self.slide_bg_clear_btn],
+            [self.save_btn, self.more_btn],
+        ]
+        for group in toolbar_groups:
+            for btn in group:
+                btn.setObjectName("toolbarButton")
+                toolbar.addWidget(btn)
+            toolbar.addSpacing(8)
+
         self.font_size_spin = QSpinBox()
         self.font_size_spin.setRange(12, 72)
-        self.font_size_spin.setFixedWidth(72)
+        self.font_size_spin.setFixedWidth(68)
+        self.font_size_spin.setToolTip("Tamanho da fonte")
         toolbar.addWidget(self.font_size_spin)
         toolbar.addStretch(1)
         root.addLayout(toolbar)
@@ -749,6 +764,12 @@ class SongEditorDialog(QDialog):
         self.text_color_btn.clicked.connect(self._choose_text_color)
         self.text_box_btn.clicked.connect(self._toggle_text_box)
         self.text_box_color_btn.clicked.connect(self._choose_text_box_color)
+        self.default_bg_image_btn.clicked.connect(lambda: self._choose_default_background("image"))
+        self.default_bg_video_btn.clicked.connect(lambda: self._choose_default_background("video"))
+        self.default_bg_clear_btn.clicked.connect(self._clear_default_background)
+        self.slide_bg_image_btn.clicked.connect(lambda: self._choose_slide_background("image"))
+        self.slide_bg_video_btn.clicked.connect(lambda: self._choose_slide_background("video"))
+        self.slide_bg_clear_btn.clicked.connect(self._clear_slide_background)
         self.font_size_spin.valueChanged.connect(self._style_changed)
         self.more_btn.clicked.connect(self._show_more_options)
 
@@ -779,22 +800,9 @@ class SongEditorDialog(QDialog):
         form.addRow("Copyright:", self.copyright_edit)
         left_layout.addWidget(form_box)
 
-        bg_row = QHBoxLayout()
         self.background_label = QLabel("Fundo padrão: sem fundo")
-        bg_image = QPushButton("🖼")
-        bg_video = QPushButton("🎞")
-        bg_clear = QPushButton("🚫")
-        bg_image.setToolTip("Escolher imagem como fundo padrão da música")
-        bg_video.setToolTip("Escolher vídeo como fundo padrão da música")
-        bg_clear.setToolTip("Limpar fundo padrão da música")
-        bg_image.clicked.connect(lambda: self._choose_default_background("image"))
-        bg_video.clicked.connect(lambda: self._choose_default_background("video"))
-        bg_clear.clicked.connect(self._clear_default_background)
-        bg_row.addWidget(self.background_label, 1)
-        bg_row.addWidget(bg_image)
-        bg_row.addWidget(bg_video)
-        bg_row.addWidget(bg_clear)
-        left_layout.addLayout(bg_row)
+        self.background_label.setStyleSheet("color: #d8d8d8; padding: 2px 0;")
+        left_layout.addWidget(self.background_label)
 
         self.raw_text_edit = QTextEdit()
         self.raw_text_edit.setPlaceholderText(
@@ -813,20 +821,11 @@ class SongEditorDialog(QDialog):
         right_layout.setSpacing(8)
 
         slide_toolbar = QHBoxLayout()
-        self.slide_bg_image_btn = QPushButton("🖼 Slide")
-        self.slide_bg_video_btn = QPushButton("🎞 Slide")
-        self.slide_bg_clear_btn = QPushButton("🚫 Slide")
-        self.slide_bg_image_btn.setToolTip("Usar imagem apenas no slide selecionado")
-        self.slide_bg_video_btn.setToolTip("Usar vídeo apenas no slide selecionado")
-        self.slide_bg_clear_btn.setToolTip("Remover fundo próprio do slide selecionado")
-        self.slide_bg_image_btn.clicked.connect(lambda: self._choose_slide_background("image"))
-        self.slide_bg_video_btn.clicked.connect(lambda: self._choose_slide_background("video"))
-        self.slide_bg_clear_btn.clicked.connect(self._clear_slide_background)
         slide_toolbar.addWidget(QLabel("Slides gerados"))
         slide_toolbar.addStretch(1)
-        slide_toolbar.addWidget(self.slide_bg_image_btn)
-        slide_toolbar.addWidget(self.slide_bg_video_btn)
-        slide_toolbar.addWidget(self.slide_bg_clear_btn)
+        slide_hint = QLabel("Use 🖼+ / 🎞+ / 🗑+ na barra superior para o slide selecionado")
+        slide_hint.setStyleSheet("color: #cfcfcf; font-size: 11px;")
+        slide_toolbar.addWidget(slide_hint)
         right_layout.addLayout(slide_toolbar)
 
         self.slide_list = QListWidget()
@@ -981,8 +980,8 @@ class SongEditorDialog(QDialog):
 
     def _refresh_case_button(self):
         mode = self.style.get("text_case", "normal")
-        labels = {"normal": "Aa", "upper": "AA", "lower": "aa"}
-        self.case_btn.setText(labels.get(mode, "Aa"))
+        labels = {"normal": "Aa Normal", "upper": "AA Alta", "lower": "aa Baixa"}
+        self.case_btn.setText(labels.get(mode, "Aa Normal"))
 
     def _refresh_alignment_buttons(self):
         alignment = self.style.get("alignment", "center")
@@ -995,12 +994,16 @@ class SongEditorDialog(QDialog):
             button.setChecked(alignment == value)
 
     def _refresh_color_button_styles(self):
-        self.text_color_btn.setStyleSheet(
-            f"background: {self._selected_text_color}; color: #000000; border: 1px solid #dddddd;"
+        self.text_color_btn.setToolTip(
+            f"Cor da letra: {self._selected_text_color}"
         )
-        self.text_box_color_btn.setStyleSheet(
-            f"background: {self._selected_box_color}; color: #ffffff; border: 1px solid #dddddd;"
+        self.text_box_color_btn.setToolTip(
+            f"Cor da caixa atrás da letra: {self._selected_box_color}"
         )
+        # Keep the same visual style as the other toolbar buttons. The chosen
+        # color is shown in the tooltip to avoid confusing colored frames.
+        self.text_color_btn.setStyleSheet("")
+        self.text_box_color_btn.setStyleSheet("")
 
     def _format_text_for_preview(self, text):
         mode = self.style.get("text_case", "normal")
