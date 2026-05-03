@@ -2361,7 +2361,19 @@ class MainWindow(
         QMessageBox.information(self, "Manual rápido", FIRST_RUN_HELP_TEXT)
 
     def show_about(self):
-        QMessageBox.information(self, "Sobre", "ScreenChurch Project\nSoftware de projeção para igrejas.\nPython + PyQt5 + VLC.")
+        QMessageBox.information(
+            self,
+            "Sobre",
+            (
+                "ScreenChurch Project\n"
+                "Software de projeção para igrejas.\n\n"
+                "Desenvolvedor:\n"
+                "Jânio Anselmo, Eng. Me\n\n"
+                "E-mail: janio@ensa.com.br\n"
+                "Telefone: +55 (48) 3017-1000\n\n"
+                "Python + PyQt5 + VLC."
+            ),
+        )
 
     def closeEvent(self, event):
         self.save_session()

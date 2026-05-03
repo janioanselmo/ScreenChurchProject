@@ -1044,3 +1044,17 @@ This is a visual/organization update only and does not change saving, projection
 - Preview remains the only audio source and is no longer affected by the Projection player.
 - The audio policy was simplified to avoid cases where Preview audio only came back after repeatedly pressing Play.
 - Video synchronization still preserves position, play/pause state and real-time slider control.
+
+### v51 — Dados do desenvolvedor na tela Sobre
+
+- A opção **Ajuda → Sobre** agora exibe os dados do desenvolvedor:
+  - Jânio Anselmo, Eng. Me
+  - janio@ensa.com.br
+  - +55 (48) 3017-1000
+
+### v51 — Developer information in About dialog
+
+- The **Help → About** dialog now displays the developer information:
+  - Jânio Anselmo, Eng. Me
+  - janio@ensa.com.br
+  - +55 (48) 3017-1000
