@@ -57,8 +57,11 @@ class _CopyWorker(QObject):
             if self._cancelled:
                 try:
                     os.remove(self.destination)
-                except OSError:
-                    pass
+                except OSError as cleanup_error:
+                    log_warning(
+                        f"Falha ao remover arquivo parcial de cópia "
+                        f"{self.destination}: {cleanup_error}"
+                    )
                 self.failed.emit("Cópia cancelada pelo operador.")
                 return
             try:

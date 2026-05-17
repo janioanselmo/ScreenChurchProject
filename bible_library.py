@@ -11,12 +11,20 @@ class BibleLibraryMixin:
         filename, _ = QFileDialog.getOpenFileName(self, "Importar Bíblia JSON", "", "JSON (*.json)")
         if not filename:
             return
+        short_name = os.path.basename(filename)
         try:
             with open(filename, "r", encoding="utf-8") as file:
                 data = json.load(file)
             version = self.normalize_bible_version(data, filename)
             if not version:
-                QMessageBox.warning(self, "Formato inválido", "Não foi possível reconhecer esta Bíblia JSON.")
+                QMessageBox.warning(
+                    self,
+                    "Formato inválido",
+                    f"Não foi possível reconhecer o formato da Bíblia em:\n{short_name}\n\n"
+                    "Formatos suportados:\n"
+                    "  - lista de livros com 'abbrev' + 'chapters' (damarals/biblias);\n"
+                    "  - objeto com 'version' + 'books'[].'chapters'[].'verses'[] (formato nativo).",
+                )
                 return
             copied_file = self.import_bible_file(filename)
             version["source_path"] = copied_file
@@ -25,8 +33,18 @@ class BibleLibraryMixin:
             self.save_local_libraries()
             self.refresh_bible_versions()
             self.show_status_message(f"Bíblia importada: {version.get('name')}", 5000)
-        except (OSError, json.JSONDecodeError, TypeError, ValueError) as error:
-            QMessageBox.warning(self, "Erro ao importar Bíblia", str(error))
+        except json.JSONDecodeError as error:
+            QMessageBox.warning(
+                self,
+                "Erro ao importar Bíblia",
+                f"JSON inválido em {short_name}:\nlinha {error.lineno}, coluna {error.colno}.\n\nDetalhe: {error.msg}",
+            )
+        except (OSError, TypeError, ValueError) as error:
+            QMessageBox.warning(
+                self,
+                "Erro ao importar Bíblia",
+                f"Falha ao processar {short_name}:\n{error}",
+            )
 
     def normalize_bible_version(self, data, filename=None):
         """Normalize supported Bible JSON formats to ScreenChurch format."""

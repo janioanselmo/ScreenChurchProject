@@ -1,5 +1,10 @@
 #define MyAppName "ScreenChurch"
-#define MyAppVersion "1.0.0"
+; MyAppVersion can be overridden by ISCC /DMyAppVersion=X.Y.Z (the PowerShell
+; build script reads the top-level VERSION file and passes it here). The
+; #ifndef keeps a manual ISCC run working out of the box.
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.0"
+#endif
 #define MyAppPublisher "Jânio Anselmo, Eng. Me"
 #define MyAppURL "mailto:janio@ensa.com.br"
 #define MyAppExeName "ScreenChurch.exe"
@@ -16,7 +21,7 @@ DefaultDirName={localappdata}\Programs\ScreenChurch
 DefaultGroupName=ScreenChurch
 DisableProgramGroupPage=yes
 OutputDir=Output
-OutputBaseFilename=ScreenChurch_Setup_v1.0.0
+OutputBaseFilename=ScreenChurch_Setup_v{#MyAppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

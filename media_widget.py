@@ -19,6 +19,8 @@ try:
 except (ImportError, OSError):
     vlc = None
 
+from error_handler import log_warning
+
 from constants import (
     DEFAULT_PANEL_HEIGHT,
     DEFAULT_PANEL_WIDTH,
@@ -328,8 +330,15 @@ class MediaWidget(QWidget):
                     self.text_background_stack.setCurrentWidget(self.text_background_video)
                     QTimer.singleShot(100, self.bg_vlc_player.play)
                     return
-                except Exception:
-                    pass
+                except Exception as exc:
+                    # The text background widget has no mediaError signal wired
+                    # to the operator UI. Without this log line, a broken video
+                    # background would silently fall through to a plain black
+                    # surface with no clue to the operator.
+                    log_warning(
+                        f"Falha ao tocar fundo de texto da parte {self.panel_number} "
+                        f"({background_path}): {exc}"
+                    )
 
         self.text_background_image.clear()
         self.text_background_stack.setCurrentWidget(self.text_plain_background)

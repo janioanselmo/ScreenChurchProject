@@ -547,15 +547,32 @@ class SongLibraryMixin:
         filename, _ = QFileDialog.getOpenFileName(self, "Importar músicas", "", "JSON (*.json)")
         if not filename:
             return
+        short_name = os.path.basename(filename)
         try:
             with open(filename, "r", encoding="utf-8") as file:
                 data = json.load(file)
             songs = data.get("songs", data if isinstance(data, list) else [])
             imported = self.upsert_imported_songs(songs)
             if not imported:
-                QMessageBox.information(self, "Importação", "Nenhuma música válida foi encontrada no JSON.")
-        except (OSError, json.JSONDecodeError) as error:
-            QMessageBox.warning(self, "Erro ao importar músicas", str(error))
+                QMessageBox.information(
+                    self,
+                    "Importação",
+                    f"Nenhuma música válida foi encontrada em {short_name}.\n\n"
+                    "O arquivo deve conter uma lista de músicas, ou um objeto com "
+                    "a chave 'songs', com 'title' e 'lyrics' em cada item.",
+                )
+        except json.JSONDecodeError as error:
+            QMessageBox.warning(
+                self,
+                "Erro ao importar músicas",
+                f"JSON inválido em {short_name}:\nlinha {error.lineno}, coluna {error.colno}.\n\nDetalhe: {error.msg}",
+            )
+        except OSError as error:
+            QMessageBox.warning(
+                self,
+                "Erro ao importar músicas",
+                f"Falha ao ler {short_name}:\n{error}",
+            )
 
     def export_songs_json(self):
         filename, _ = QFileDialog.getSaveFileName(self, "Exportar músicas", "screenchurch_songs.json", "JSON (*.json)")

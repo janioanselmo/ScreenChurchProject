@@ -2236,9 +2236,14 @@ class MainWindow(
         self.service_items = []
         self.refresh_service_list()
 
+    # Cap how many service items are persisted in QSettings. Real services
+    # rarely exceed 50 items; 500 leaves generous headroom while preventing
+    # unbounded growth of the JSON blob written to the Windows Registry.
+    SERVICE_ITEMS_PERSIST_LIMIT = 500
+
     def service_items_for_storage(self):
         items = []
-        for item in self.service_items:
+        for item in self.service_items[: self.SERVICE_ITEMS_PERSIST_LIMIT]:
             stored = dict(item)
             if isinstance(stored.get("descriptor"), dict):
                 stored["descriptor"] = self.relativize_descriptor_paths(stored.get("descriptor"))

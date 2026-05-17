@@ -43,16 +43,16 @@ Coverage: same set of Python modules + project metadata.
 | M2 | `main_window.py:268, 274` (antigo `textChanged.connect(refresh_*)`) | Refresh disparava por keystroke; com 1000+ músicas refrescar a lista a cada caractere causava lag. | ✅ `QTimer` 250 ms entre `textChanged` e refresh. |
 | M3 | `bible_library.py:62, 134` | `int(verse.get("number"))` sem `try/except`; Bíblia JSON com campo malformado fazia o import inteiro falhar. | ✅ Trap `ValueError/TypeError` com fallback para índice posicional. |
 | M4 | `song_dialogs.py:212, 336` | `urllib.urlopen` sem `ssl.create_default_context()` explícito. Em ambientes com proxy interceptando TLS pode falhar silenciosamente. | 🔲 Comportamento padrão Python usa `ssl.create_default_context()` internamente desde 3.4.4; suficiente para CTF/igreja. Revisitar se houver relato. |
-| M5 | `media_widget.py:294-329` (`apply_text_background`) | Erro ao tocar fundo de texto cai em `except: pass`. Operador vê tela preta sem motivo aparente. | 🔲 Existe `mediaError` signal mas só é conectado no painel principal; fundos de texto silenciam. Próxima rodada pode logar via `error_handler.log_warning`. |
+| M5 | `media_widget.py:294-329` (`apply_text_background`) | Erro ao tocar fundo de texto cai em `except: pass`. Operador vê tela preta sem motivo aparente. | ✅ Substituído por `error_handler.log_warning` com nome do arquivo e número da parte. Operador agora encontra a causa em `crash.log`. |
 
 ### 🟢 Baixos
 
 | # | Local | Problema | Status |
 |---|---|---|---|
-| L1 | `background_tasks.py:60` | `os.remove` no cleanup de cancel cai em `except OSError: pass` sem log. | 🔲 Pendente — ruído mínimo. |
-| L2 | `installer/ScreenChurch.iss` | Versão `1.0.0` hardcoded em duas linhas (`MyAppVersion` e `OutputBaseFilename`). Sem fonte única de verdade. | 🔲 Pendente — quando bumpar versão, ambas precisam mudar. |
-| L3 | `bible_dialogs.py:103`, `song_dialogs.py` imports | Mensagens de erro de importação genéricas ("Bíblia inválida") sem indicar qual livro/verso falhou. | 🔲 Pendente — vale enriquecer mensagens em sessão dedicada a UX. |
-| L4 | `main_window.py:2308` | `service_items_for_storage` sem limite; 1000+ itens acumulados engordam o registry. | 🔲 Pendente — não observado em uso real ainda. |
+| L1 | `background_tasks.py:60` | `os.remove` no cleanup de cancel cai em `except OSError: pass` sem log. | ✅ Substituído por `log_warning` no caminho de falha. |
+| L2 | `installer/ScreenChurch.iss` | Versão `1.0.0` hardcoded em duas linhas (`MyAppVersion` e `OutputBaseFilename`). Sem fonte única de verdade. | ✅ Arquivo `VERSION` na raiz é a fonte única. `.iss` usa `#ifndef` para fallback; `build_installer_windows.ps1` lê `VERSION` e passa `/DMyAppVersion=` ao ISCC. `OutputBaseFilename` usa `{#MyAppVersion}`. |
+| L3 | `bible_library.import_bible_json`, `song_library.import_songs_json` | Mensagens de erro de importação genéricas ("Bíblia inválida") sem indicar qual arquivo / linha do JSON falhou. | ✅ Mensagens enriquecidas com nome do arquivo, formatos esperados e, para `JSONDecodeError`, linha/coluna do erro. |
+| L4 | `main_window.service_items_for_storage` | `service_items_for_storage` sem limite; 1000+ itens acumulados engordam o registry. | ✅ Cap em 500 itens via `SERVICE_ITEMS_PERSIST_LIMIT`. |
 
 ### Coisas que estão **certas** (não geram findings)
 
@@ -104,16 +104,16 @@ Coverage: same set of Python modules + project metadata.
 | M2 | `main_window.py:268, 274` (old `textChanged.connect(refresh_*)`) | Refresh fired per keystroke; with 1000+ songs, refreshing on every character caused lag. | ✅ 250 ms `QTimer` between `textChanged` and refresh. |
 | M3 | `bible_library.py:62, 134` | `int(verse.get("number"))` with no `try/except`; a Bible JSON with a malformed field failed the whole import. | ✅ Trap `ValueError/TypeError` with positional-index fallback. |
 | M4 | `song_dialogs.py:212, 336` | `urllib.urlopen` without an explicit `ssl.create_default_context()`. May fail silently with HTTPS-intercepting proxies. | 🔲 Python's default has used `ssl.create_default_context()` internally since 3.4.4; acceptable for the church/CTF use case. Revisit if anyone reports an issue. |
-| M5 | `media_widget.py:294-329` (`apply_text_background`) | Errors playing a text background fall into `except: pass`. Operator sees a black screen with no reason. | 🔲 The `mediaError` signal exists but is only wired on the main panel; text backgrounds stay silent. Next round can log via `error_handler.log_warning`. |
+| M5 | `media_widget.py:294-329` (`apply_text_background`) | Errors playing a text background fall into `except: pass`. Operator sees a black screen with no reason. | ✅ Replaced with `error_handler.log_warning` including the file path and panel number. The operator can now find the cause in `crash.log`. |
 
 ### 🟢 Low
 
 | # | Location | Issue | Status |
 |---|---|---|---|
-| L1 | `background_tasks.py:60` | The cancel-cleanup `os.remove` swallows `OSError` without logging. | 🔲 Pending — minimal noise. |
-| L2 | `installer/ScreenChurch.iss` | Version `1.0.0` hardcoded in two places (`MyAppVersion` and `OutputBaseFilename`). No single source of truth. | 🔲 Pending — both need to change at each bump. |
-| L3 | `bible_dialogs.py:103`, `song_dialogs.py` imports | Generic import error messages ("Bíblia inválida") without saying which book/verse failed. | 🔲 Pending — worth a dedicated UX pass. |
-| L4 | `main_window.py:2308` | `service_items_for_storage` is unbounded; 1000+ items would bloat the registry. | 🔲 Pending — not observed in real use yet. |
+| L1 | `background_tasks.py:60` | The cancel-cleanup `os.remove` swallows `OSError` without logging. | ✅ Replaced with `log_warning` on the failure path. |
+| L2 | `installer/ScreenChurch.iss` | Version `1.0.0` hardcoded in two places (`MyAppVersion` and `OutputBaseFilename`). No single source of truth. | ✅ Top-level `VERSION` file is the single source. `.iss` uses `#ifndef` as fallback; `build_installer_windows.ps1` reads `VERSION` and passes `/DMyAppVersion=` to ISCC. `OutputBaseFilename` uses `{#MyAppVersion}`. |
+| L3 | `bible_library.import_bible_json`, `song_library.import_songs_json` | Generic import error messages without saying which file / JSON line failed. | ✅ Messages now include the file name, expected formats and, for `JSONDecodeError`, the line/column of the error. |
+| L4 | `main_window.service_items_for_storage` | `service_items_for_storage` is unbounded; 1000+ items would bloat the registry. | ✅ Capped at 500 entries via `SERVICE_ITEMS_PERSIST_LIMIT`. |
 
 ### Things that are **correct** (no findings)
 

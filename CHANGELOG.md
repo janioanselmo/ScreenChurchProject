@@ -7,6 +7,24 @@ Formato: [Keep a Changelog](https://keepachangelog.com/), milestones v40 → v57
 
 ---
 
+## [v57.2] — 2026-05-17 — Finalização da auditoria / Audit follow-up
+
+### 🇧🇷 PT-BR
+- **Fonte única de versão**: novo arquivo `VERSION` na raiz é a única referência. `installer/ScreenChurch.iss` usa `#ifndef MyAppVersion` + `{#MyAppVersion}` no `OutputBaseFilename`; `build_installer_windows.ps1` lê `VERSION` e passa `/DMyAppVersion=X.Y.Z` ao ISCC.
+- **Fundos de texto em vídeo**: erro do VLC em `apply_text_background` deixou de ser silencioso. Falhas vão para `crash.log` via `error_handler.log_warning`.
+- **Cleanup parcial de cópia**: `_CopyWorker` agora loga via `log_warning` quando não consegue remover o arquivo parcial após cancelamento.
+- **Mensagens de erro de importação**: Bíblia e música ganharam mensagens enriquecidas (nome do arquivo, linha/coluna do JSON com erro, formatos esperados). Antes: "Bíblia inválida" genérico.
+- **Cap em service items persistidos**: `SERVICE_ITEMS_PERSIST_LIMIT = 500` em `main_window.service_items_for_storage` evita crescimento descontrolado do JSON em QSettings.
+
+### 🇺🇸 English
+- **Single source for the version**: new `VERSION` file at the project root is the only reference. `installer/ScreenChurch.iss` uses `#ifndef MyAppVersion` + `{#MyAppVersion}` in `OutputBaseFilename`; `build_installer_windows.ps1` reads `VERSION` and passes `/DMyAppVersion=X.Y.Z` to ISCC.
+- **Text video backgrounds**: VLC errors in `apply_text_background` are no longer silent. Failures land in `crash.log` via `error_handler.log_warning`.
+- **Partial copy cleanup**: `_CopyWorker` now logs via `log_warning` when it cannot remove the partial file after cancellation.
+- **Import error messages**: Bible and song imports now include the file name, the JSON line/column on parse errors, and the expected formats. Previously: generic "Bíblia inválida".
+- **Cap on persisted service items**: `SERVICE_ITEMS_PERSIST_LIMIT = 500` in `main_window.service_items_for_storage` prevents the QSettings JSON from growing unbounded.
+
+---
+
 ## [v57.1] — 2026-05-17 — Auditoria de código / Code audit
 
 ### 🇧🇷 PT-BR
