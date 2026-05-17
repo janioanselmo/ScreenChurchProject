@@ -230,11 +230,12 @@ class DataStorageMixin:
             return
         if filename.lower().endswith(".zip"):
             filename = filename[:-4]
-        try:
-            zip_path = shutil.make_archive(filename, "zip", self._data_root)
+        # Lazy import to keep data_storage.py importable without a QApplication
+        # (useful for unit tests or headless tooling).
+        from background_tasks import make_archive_in_background
+        zip_path = make_archive_in_background(self, filename, self._data_root)
+        if zip_path:
             self.show_status_message(f"Backup criado: {zip_path}", 6000)
-        except OSError as error:
-            QMessageBox.warning(self, "Backup", str(error))
 
 
     def discover_media_files(self):

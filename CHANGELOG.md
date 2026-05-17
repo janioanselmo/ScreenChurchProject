@@ -7,6 +7,52 @@ Formato: [Keep a Changelog](https://keepachangelog.com/), milestones v40 → v57
 
 ---
 
+## [v57.1] — 2026-05-17 — Auditoria de código / Code audit
+
+### 🇧🇷 PT-BR
+
+#### Vazamentos de recursos VLC corrigidos
+- `MediaWidget.cleanup()` libera explicitamente `vlc.Instance` + 2 `MediaPlayer` (não são gerenciados pelo GC do Python, são C nativo).
+- `MainWindow.closeEvent` agora chama cleanup em todos os widgets de prévia e projeção antes de sair.
+- `MainWindow.remove_last_panel` e `ProjectionWindow.set_panel_count` (ao reduzir painéis) chamam cleanup antes de `deleteLater`.
+
+#### Throttle agressivo no `save_session`
+- 29 chamadas diretas viraram `request_save_session()` com debounce de 1500 ms via `QTimer`. Cada ação UI grava um JSON enorme no Windows Registry; agora bursts são coalescidos em uma única gravação.
+- `closeEvent` ainda chama `save_session()` direto para garantir gravação síncrona antes de sair.
+
+#### Busca online de músicas e backup ZIP em thread
+- `OnlineSongSearchDialog.search_online()` e `fetch_lyrics_from_url()` agora usam `background_tasks.fetch_url_in_background` (QThread + QProgressDialog cancelável). Antes, um `urllib.urlopen` de 12-15 s congelava o app.
+- `backup_data_folder` usa `make_archive_in_background`. ZIP da pasta `ScreenChurchData` (potencialmente vários GB) não bloqueia mais a UI.
+
+#### Debounce nas buscas locais
+- `media_search.textChanged` e `song_search.textChanged` passam por `QTimer` de 250 ms. Com 1000+ músicas, refresh por keystroke causava lag perceptível.
+
+#### Robustez do parser bíblico
+- `bible_library.normalize_verse_list` e `normalize_bible_version` agora tratam `ValueError`/`TypeError` em `int(verse.get("number"))`. Antes, uma Bíblia JSON com `"number"` malformado fazia o import inteiro falhar com mensagem genérica; agora usa o índice posicional como fallback.
+
+### 🇺🇸 English
+
+#### VLC resource leaks fixed
+- `MediaWidget.cleanup()` explicitly releases `vlc.Instance` + 2 `MediaPlayer` (these aren't tracked by Python's GC — native C resources).
+- `MainWindow.closeEvent` now calls cleanup on every preview and projection widget before exiting.
+- `MainWindow.remove_last_panel` and `ProjectionWindow.set_panel_count` (when shrinking) call cleanup before `deleteLater`.
+
+#### Aggressive throttle on `save_session`
+- 29 direct calls became `request_save_session()` with a 1500 ms `QTimer` debounce. Each UI action used to write a large JSON blob to the Windows Registry; bursts now coalesce into a single write.
+- `closeEvent` still calls `save_session()` directly so the last state is written synchronously before exit.
+
+#### Online song search and backup ZIP moved to threads
+- `OnlineSongSearchDialog.search_online()` and `fetch_lyrics_from_url()` now use `background_tasks.fetch_url_in_background` (QThread + cancellable QProgressDialog). A 12-15 s `urllib.urlopen` used to freeze the app.
+- `backup_data_folder` uses `make_archive_in_background`. Backing up multi-GB `ScreenChurchData` no longer blocks the UI.
+
+#### Debounce on local search inputs
+- `media_search.textChanged` and `song_search.textChanged` go through a 250 ms `QTimer`. With 1000+ songs, per-keystroke refresh caused noticeable lag.
+
+#### Bible parser robustness
+- `bible_library.normalize_verse_list` and `normalize_bible_version` now catch `ValueError`/`TypeError` around `int(verse.get("number"))`. A malformed `"number"` field used to fail the whole import with a generic message; positional index is now used as a fallback.
+
+---
+
 ## [v57] — 2026-05-17 — Estabilidade no carregamento de vídeo / Video load stability
 
 ### 🇧🇷 PT-BR

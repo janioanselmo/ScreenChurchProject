@@ -59,7 +59,11 @@ class BibleLibraryMixin:
             normalized_chapters = []
             for chapter_index, chapter in enumerate(chapters, start=1):
                 if isinstance(chapter, dict):
-                    number = int(chapter.get("number", chapter.get("chapter", chapter_index)))
+                    raw_number = chapter.get("number", chapter.get("chapter", chapter_index))
+                    try:
+                        number = int(raw_number)
+                    except (TypeError, ValueError):
+                        number = chapter_index
                     verses = chapter.get("verses", [])
                 elif isinstance(chapter, list):
                     number = chapter_index
@@ -131,7 +135,11 @@ class BibleLibraryMixin:
 
         for verse_index, verse in enumerate(verses, start=1):
             if isinstance(verse, dict):
-                number = int(verse.get("number", verse.get("verse", verse_index)))
+                raw_number = verse.get("number", verse.get("verse", verse_index))
+                try:
+                    number = int(raw_number)
+                except (TypeError, ValueError):
+                    number = verse_index
                 text = str(verse.get("text", ""))
             else:
                 number = verse_index

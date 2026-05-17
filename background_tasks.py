@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import urllib.request
 
 from PyQt5.QtCore import QObject, QThread, Qt, pyqtSignal
 from PyQt5.QtWidgets import QMessageBox, QProgressDialog
@@ -140,3 +141,150 @@ def copy_file_to_folder(parent, source: str, destination_folder: str, *,
         QMessageBox.warning(parent, "Erro ao copiar", result["error"])
         return None
     return result["path"]
+
+
+class _ArchiveWorker(QObject):
+    finished = pyqtSignal(str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, base_name: str, root_dir: str):
+        super().__init__()
+        self.base_name = base_name
+        self.root_dir = root_dir
+
+    def run(self) -> None:
+        try:
+            path = shutil.make_archive(self.base_name, "zip", self.root_dir)
+            self.finished.emit(path)
+        except OSError as error:
+            self.failed.emit(str(error))
+
+
+def make_archive_in_background(parent, base_name: str, root_dir: str, *,
+                               title: str = "Criando backup") -> str | None:
+    """Run shutil.make_archive on a QThread with an indeterminate progress dialog.
+
+    ZIP creation for a multi-GB ScreenChurchData folder takes long enough to
+    freeze the UI synchronously; Windows can flag the app as "not responding".
+    Returns the resulting archive path, or None on failure.
+    """
+    dialog = QProgressDialog(
+        "Compactando dados em ZIP. Isto pode levar alguns minutos…",
+        None,
+        0,
+        0,  # 0/0 = indeterminate (busy) bar
+        parent,
+    )
+    dialog.setWindowTitle(title)
+    dialog.setWindowModality(Qt.WindowModal)
+    dialog.setMinimumDuration(0)
+    dialog.setAutoClose(True)
+    dialog.setAutoReset(False)
+    dialog.setCancelButton(None)  # make_archive cannot be cancelled mid-flight
+
+    thread = QThread(parent)
+    worker = _ArchiveWorker(base_name, root_dir)
+    worker.moveToThread(thread)
+
+    result = {"path": None, "error": None}
+
+    def _on_finished(path: str) -> None:
+        result["path"] = path
+        thread.quit()
+
+    def _on_failed(message: str) -> None:
+        result["error"] = message
+        thread.quit()
+
+    thread.started.connect(worker.run)
+    worker.finished.connect(_on_finished)
+    worker.failed.connect(_on_failed)
+    thread.finished.connect(dialog.reset)
+    thread.finished.connect(worker.deleteLater)
+
+    thread.start()
+    dialog.exec_()
+    thread.wait(30_000)
+    thread.deleteLater()
+
+    if result["error"]:
+        log_warning(f"Falha ao criar backup em {base_name}: {result['error']}")
+        QMessageBox.warning(parent, "Backup", result["error"])
+        return None
+    return result["path"]
+
+
+class _HttpFetchWorker(QObject):
+    finished = pyqtSignal(bytes, str)
+    failed = pyqtSignal(str)
+
+    def __init__(self, url: str, headers: dict, timeout: int):
+        super().__init__()
+        self.url = url
+        self.headers = headers or {}
+        self.timeout = timeout
+
+    def run(self) -> None:
+        try:
+            request = urllib.request.Request(self.url, headers=self.headers)
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                raw = response.read()
+                charset = response.headers.get_content_charset() or "utf-8"
+            self.finished.emit(raw, charset)
+        except Exception as error:
+            self.failed.emit(str(error))
+
+
+def fetch_url_in_background(parent, url: str, *, headers: dict = None,
+                            timeout: int = 15,
+                            title: str = "Buscando online"):
+    """Run urllib.urlopen on a QThread with a modal progress dialog.
+
+    Returns (raw_bytes, charset) on success, or (None, None) on failure/cancel.
+    The dialog keeps the UI responsive while online song search / lyric fetch
+    is in flight. Cancelling hides the dialog immediately but the worker can
+    only stop on its own timeout — urlopen has no clean interrupt.
+    """
+    dialog = QProgressDialog("Buscando online…", "Cancelar", 0, 0, parent)
+    dialog.setWindowTitle(title)
+    dialog.setWindowModality(Qt.WindowModal)
+    dialog.setMinimumDuration(200)  # avoid flashing for sub-200 ms responses
+    dialog.setAutoClose(True)
+    dialog.setAutoReset(False)
+
+    thread = QThread(parent)
+    worker = _HttpFetchWorker(url, headers or {}, timeout)
+    worker.moveToThread(thread)
+
+    result = {"raw": None, "charset": None, "error": None, "cancelled": False}
+
+    def _on_finished(raw: bytes, charset: str) -> None:
+        result["raw"] = raw
+        result["charset"] = charset
+        thread.quit()
+
+    def _on_failed(message: str) -> None:
+        result["error"] = message
+        thread.quit()
+
+    def _on_cancel() -> None:
+        result["cancelled"] = True
+        thread.quit()
+
+    thread.started.connect(worker.run)
+    worker.finished.connect(_on_finished)
+    worker.failed.connect(_on_failed)
+    dialog.canceled.connect(_on_cancel)
+    thread.finished.connect(dialog.reset)
+    thread.finished.connect(worker.deleteLater)
+
+    thread.start()
+    dialog.exec_()
+    thread.wait(int((timeout + 2) * 1000))
+    thread.deleteLater()
+
+    if result["cancelled"] or result["error"]:
+        if result["error"]:
+            log_warning(f"Falha HTTP em {url}: {result['error']}")
+        return None, None
+    return result["raw"], result["charset"]

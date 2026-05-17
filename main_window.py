@@ -124,6 +124,17 @@ class MainWindow(
         self.projection_sync_timer.setInterval(250)
         self.projection_sync_timer.timeout.connect(self.sync_projection_video_players)
 
+        # Debounced session saver. Many user actions (load media, change panel,
+        # switch target, mute, etc.) used to call save_session() directly, each
+        # one serializing the full state to JSON and writing to the Windows
+        # Registry. With heavy use this slows the UI and bloats the registry.
+        # All callers now use request_save_session(); only closeEvent and the
+        # explicit "Save service" menu call save_session() directly.
+        self._save_session_timer = QTimer(self)
+        self._save_session_timer.setSingleShot(True)
+        self._save_session_timer.setInterval(1500)
+        self._save_session_timer.timeout.connect(self.save_session)
+
         self.setWindowTitle("ScreenChurch Project")
         self.setGeometry(80, 80, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
         self.statusBar().setStyleSheet("padding: 2px 8px;")
@@ -265,13 +276,26 @@ class MainWindow(
         self.media_list.itemDoubleClicked.connect(self.load_media_item_to_selected_panel)
         self.media_search = QLineEdit()
         self.media_search.setPlaceholderText("Buscar mídia...")
-        self.media_search.textChanged.connect(self.refresh_media_list)
+
+        # Debounce both search inputs: without it textChanged fires per
+        # keystroke and refresh_song_list / refresh_media_list iterate the
+        # full library each time. 250 ms is fast enough to feel live but
+        # collapses bursts of typing into a single refresh.
+        self._media_search_timer = QTimer(self)
+        self._media_search_timer.setSingleShot(True)
+        self._media_search_timer.setInterval(250)
+        self._media_search_timer.timeout.connect(self.refresh_media_list)
+        self.media_search.textChanged.connect(lambda *_: self._media_search_timer.start())
 
         self.song_list = QListWidget()
         self.song_list.itemClicked.connect(self.load_song_to_form)
         self.song_search = QLineEdit()
         self.song_search.setPlaceholderText("Buscar música ou trecho...")
-        self.song_search.textChanged.connect(self.refresh_song_list)
+        self._song_search_timer = QTimer(self)
+        self._song_search_timer.setSingleShot(True)
+        self._song_search_timer.setInterval(250)
+        self._song_search_timer.timeout.connect(self.refresh_song_list)
+        self.song_search.textChanged.connect(lambda *_: self._song_search_timer.start())
         self.song_list.itemDoubleClicked.connect(self.load_song_to_form)
         self.song_current_label = QLabel("Nenhuma música selecionada")
         self.song_current_label.setStyleSheet("font-weight: 600; color: #f1f1f1; padding: 4px;")
@@ -861,7 +885,7 @@ class MainWindow(
         QTimer.singleShot(0, partial(self.force_text_descriptor_to_projection, panel_index, dict(descriptor)))
         QTimer.singleShot(80, partial(self.force_text_descriptor_to_projection, panel_index, dict(descriptor)))
         QTimer.singleShot(180, partial(self.force_text_descriptor_to_projection, panel_index, dict(descriptor)))
-        self.save_session()
+        self.request_save_session()
 
     def navigate_live_song(self, panel_index, descriptor, navigation, step):
         title = str(navigation.get("title", "")).strip()
@@ -1054,7 +1078,7 @@ class MainWindow(
             self.projection_window.setFocus(Qt.OtherFocusReason)
 
         self.show_status_message(message, 2200)
-        self.save_session()
+        self.request_save_session()
         return True
 
     # ------------------------------------------------------------------
@@ -1099,7 +1123,7 @@ class MainWindow(
         screen = self.selected_screen()
         if screen:
             self.projection_window.set_output_screen(screen)
-        self.save_session()
+        self.request_save_session()
         self.update_global_status()
 
     def toggle_fullscreen(self):
@@ -1117,7 +1141,7 @@ class MainWindow(
         self.enforce_video_audio_policy()
         self.projection_sync_timer.start()
         self.fullscreen_button.setText("⏹")
-        self.save_session()
+        self.request_save_session()
         self.update_global_status()
 
     def exit_fullscreen(self):
@@ -1127,7 +1151,7 @@ class MainWindow(
         self.projection_window.hide_projection()
         self.enforce_video_audio_policy()
         self.fullscreen_button.setText("▶ Projetar")
-        self.save_session()
+        self.request_save_session()
         self.update_global_status()
 
     def is_projection_active(self):
@@ -1208,7 +1232,7 @@ class MainWindow(
         QTimer.singleShot(100, self.enforce_video_audio_policy)
         QTimer.singleShot(500, self.enforce_video_audio_policy)
         self.update_global_status()
-        self.save_session()
+        self.request_save_session()
         if announce:
             self.show_status_message(
                 f"Projeção sincronizada com {mirrored} parte(s).",
@@ -1236,7 +1260,7 @@ class MainWindow(
         self.fullscreen_button.setText("▶ Projetar")
         self.activateWindow()
         self.raise_()
-        self.save_session()
+        self.request_save_session()
         self.update_global_status()
 
     def restore_preview_video_outputs(self):
@@ -1302,7 +1326,7 @@ class MainWindow(
         self.update_panel_buttons()
         self.refresh_target_panel_combo()
         self.select_panel(index)
-        self.save_session()
+        self.request_save_session()
 
     def remove_last_panel(self):
         if len(self.media_widgets) <= 1:
@@ -1314,6 +1338,7 @@ class MainWindow(
         panel_container.deleteLater()
         media_widget = self.media_widgets.pop()
         media_widget.clear_media()
+        media_widget.cleanup()
         media_widget.deleteLater()
         self.playlists.pop()
         self.playlist_positions.pop()
@@ -1329,7 +1354,7 @@ class MainWindow(
         self.refresh_target_panel_combo()
         self.select_panel(min(self.selected_panel_index, len(self.media_widgets) - 1))
         self.update_panel_buttons()
-        self.save_session()
+        self.request_save_session()
 
     def build_panel(self, index, media_widget):
         group = QGroupBox(f"Parte {index + 1}")
@@ -1444,7 +1469,7 @@ class MainWindow(
         if self.load_panel_media(panel_index, filename):
             self.playlists[panel_index] = [filename]
             self.playlist_positions[panel_index] = 0
-            self.save_session()
+            self.request_save_session()
 
     def load_panel_media(self, panel_index, filename, announce=True, track_recent=True):
         if not self.media_widgets[panel_index].load_media(filename):
@@ -1470,7 +1495,7 @@ class MainWindow(
         self.refresh_panel_status(panel_index)
         self.update_global_status()
         self.sync_preview_panel_to_projection(panel_index)
-        self.save_session()
+        self.request_save_session()
 
     def load_descriptor_to_preview(self, descriptor, panel_index):
         if panel_index < 0 or panel_index >= len(self.media_widgets):
@@ -1479,7 +1504,7 @@ class MainWindow(
         self.refresh_panel_status(panel_index)
         self.select_panel(panel_index)
         self.sync_preview_panel_to_projection(panel_index)
-        self.save_session()
+        self.request_save_session()
 
     def descriptor_signature(self, descriptor):
         """Return a stable signature to avoid duplicate live sends."""
@@ -1556,7 +1581,7 @@ class MainWindow(
                 self.show_status_message(
                     f"Parte {panel_index + 1} sincronizada com a prévia.", 3000
                 )
-            self.save_session()
+            self.request_save_session()
             self.update_global_status()
             return True
 
@@ -1575,7 +1600,7 @@ class MainWindow(
         self.live_descriptors[panel_index] = descriptor
         if announce:
             self.show_status_message(f"Parte {panel_index + 1} enviada ao vivo.", 3000)
-        self.save_session()
+        self.request_save_session()
         self.update_global_status()
         return True
 
@@ -1603,7 +1628,7 @@ class MainWindow(
         self.playlist_positions[panel_index] = 0
         self.refresh_panel_status(panel_index)
         self.update_global_status()
-        self.save_session()
+        self.request_save_session()
 
     def clear_live_panel(self, panel_index):
         if panel_index >= len(self.projection_window.media_widgets):
@@ -1635,7 +1660,7 @@ class MainWindow(
         self.load_panel_media(panel_index, supported[0], announce=False, track_recent=False)
         for filename in supported:
             self.add_to_media_library(filename)
-        self.save_session()
+        self.request_save_session()
         self.show_status_message(f"Parte {panel_index + 1}: lista com {len(supported)} itens.")
 
     def previous_playlist_item(self, panel_index, _checked=False):
@@ -1651,7 +1676,7 @@ class MainWindow(
         position = (self.playlist_positions[panel_index] + step) % len(playlist)
         self.playlist_positions[panel_index] = position
         self.load_panel_media(panel_index, playlist[position], announce=False, track_recent=False)
-        self.save_session()
+        self.request_save_session()
 
     def advance_image_playlists(self):
         if not self.loop_checkbox.isChecked() or self.blackout_enabled:
@@ -1759,7 +1784,7 @@ class MainWindow(
             self.refresh_panel_status(index)
         self.refresh_target_panel_combo()
         self.update_global_status()
-        self.save_session()
+        self.request_save_session()
 
     def open_projection_settings(self):
         dialog = ProjectionSettingsDialog(self.panel_sizes(), output_size=self.selected_output_size(), parent=self)
@@ -2090,7 +2115,7 @@ class MainWindow(
         playlist.append(path)
         if len(playlist) == 1:
             self.load_panel_media(panel_index, path)
-        self.save_session()
+        self.request_save_session()
 
     # ------------------------------------------------------------------
     # Text case helpers
@@ -2126,7 +2151,7 @@ class MainWindow(
         self.update_bible_case_buttons()
         self.apply_text_case_to_kind("bíblia", self.bible_text_case)
         self.show_status_message(f"Bíblia: {self.text_case_description(self.bible_text_case)}", 2500)
-        self.save_session()
+        self.request_save_session()
 
     def update_bible_case_buttons(self):
         label = self.text_case_button_label(self.bible_text_case)
@@ -2140,7 +2165,7 @@ class MainWindow(
         self.song_case_button.setText(self.text_case_button_label(self.song_text_case))
         self.apply_text_case_to_kind("letra", self.song_text_case)
         self.show_status_message(f"Letras: {self.text_case_description(self.song_text_case)}", 2500)
-        self.save_session()
+        self.request_save_session()
 
     def apply_text_case_to_kind(self, kind, mode):
         """Apply text-case changes to preview and live text panels immediately."""
@@ -2158,7 +2183,7 @@ class MainWindow(
                 options = dict(descriptor.get("options", {}) or {})
                 options["text_case"] = mode
                 descriptor["options"] = options
-        self.save_session()
+        self.request_save_session()
         self.update_global_status()
 
     # ------------------------------------------------------------------
@@ -2170,7 +2195,7 @@ class MainWindow(
             list_item = QListWidgetItem(item.get("label", "Item"))
             list_item.setData(Qt.UserRole, item)
             self.service_list.addItem(list_item)
-        self.save_session()
+        self.request_save_session()
 
     def add_current_preview_to_service(self):
         descriptor = self.media_widgets[self.selected_panel_index].media_descriptor()
@@ -2185,7 +2210,7 @@ class MainWindow(
         self.media_widgets[panel_index].load_from_descriptor(descriptor)
         self.refresh_panel_status(panel_index)
         self.show_status_message(f"Item carregado na prévia da parte {panel_index + 1}.", 3000)
-        self.save_session()
+        self.request_save_session()
 
     def load_selected_service_item_to_preview(self):
         item = self.service_list.currentItem()
@@ -2276,10 +2301,22 @@ class MainWindow(
             return
         data = self.load_json_file(filename, default={})
         self.apply_session_data(data)
-        self.save_session()
+        self.request_save_session()
 
     def save_session(self):
         self.settings.setValue("session", json.dumps(self.session_data(), ensure_ascii=False))
+
+    def request_save_session(self):
+        """Schedule a debounced session save.
+
+        Coalesces a burst of UI changes into a single write to QSettings.
+        Use this from event handlers instead of save_session() directly.
+        """
+        if not self._save_session_timer.isActive():
+            self._save_session_timer.start()
+        # If already active, the existing pending shot keeps the latest state
+        # because save_session() always reads the live session_data() at fire
+        # time. No need to restart the timer on every event.
 
     def restore_last_session(self):
         raw = self.settings.value("session", "")
@@ -2478,7 +2515,7 @@ class MainWindow(
         self.is_operation_mode = not self.is_operation_mode
         self.left_tabs.setVisible(not self.is_operation_mode)
         self.mode_button.setText("👁" if self.is_operation_mode else "👁")
-        self.save_session()
+        self.request_save_session()
 
     def toggle_blackout(self):
         self.blackout_enabled = not self.blackout_enabled
@@ -2486,13 +2523,13 @@ class MainWindow(
             widget.set_blackout(self.blackout_enabled)
         self.blackout_button.setText("↩" if self.blackout_enabled else "⚫")
         # Blackout only hides/shows the projection; it must not alter playback.
-        self.save_session()
+        self.request_save_session()
         self.update_global_status()
 
     def set_loop_enabled(self, enabled):
         for widget in self.media_widgets + self.projection_window.media_widgets:
             widget.set_loop_enabled(enabled)
-        self.save_session()
+        self.request_save_session()
 
     def confirm_preview(self, filename):
         dialog = PreviewDialog(filename, self)
@@ -2551,7 +2588,17 @@ class MainWindow(
         )
 
     def closeEvent(self, event):
+        # Cancel any pending debounced save and write synchronously so the
+        # last state is on disk before the process exits.
+        self._save_session_timer.stop()
         self.save_session()
         self.save_local_libraries()
         self.projection_window.close()
+        # Release VLC native resources held by each preview and projection
+        # panel. Without this, exiting the app leaks vlc.Instance + 2 players
+        # per panel (up to 24 instances in a session with the max layout).
+        for widget in self.media_widgets:
+            widget.cleanup()
+        for widget in self.projection_window.media_widgets:
+            widget.cleanup()
         super().closeEvent(event)

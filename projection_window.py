@@ -48,6 +48,7 @@ class ProjectionWindow(QWidget):
             for media_widget in self.media_widgets[panel_count:]:
                 self.layout.removeWidget(media_widget)
                 media_widget.setParent(None)
+                media_widget.cleanup()
                 media_widget.deleteLater()
             self.media_widgets = self.media_widgets[:panel_count]
 

@@ -202,23 +202,26 @@ class OnlineSongSearchDialog(QDialog):
             return
         self.results_list.clear()
         self.results_list.addItem("Pesquisando...")
-        QApplication.processEvents()
-        try:
-            url = self.SEARCH_URL.format(query=urllib.parse.quote_plus(query))
-            request = urllib.request.Request(
-                url,
-                headers={"User-Agent": "Mozilla/5.0 ScreenChurch/1.0"},
-            )
-            with urllib.request.urlopen(request, timeout=12) as response:
-                html = response.read().decode("utf-8", errors="ignore")
-            self.results = self.parse_duckduckgo_results(html)
-        except Exception as exc:
+
+        # Fetch happens on a background QThread so the dialog stays responsive
+        # while DuckDuckGo answers (or doesn't). A 12s urlopen on the main
+        # thread used to freeze the whole app.
+        from background_tasks import fetch_url_in_background
+        url = self.SEARCH_URL.format(query=urllib.parse.quote_plus(query))
+        raw, charset = fetch_url_in_background(
+            self, url,
+            headers={"User-Agent": "Mozilla/5.0 ScreenChurch/1.0"},
+            timeout=12,
+            title="Pesquisando online",
+        )
+        if raw is None:
             self.results = []
             self.results_list.clear()
             self.results_list.addItem("Não foi possível pesquisar dentro do programa.")
             self.results_list.addItem("Use o botão 🌐 Abrir busca.")
-            QMessageBox.warning(self, "Pesquisa online", f"Falha na pesquisa online:\n{exc}")
             return
+        html = raw.decode(charset or "utf-8", errors="ignore")
+        self.results = self.parse_duckduckgo_results(html)
 
         self.results_list.clear()
         if not self.results:
@@ -298,24 +301,14 @@ class OnlineSongSearchDialog(QDialog):
             return
 
         self.prefill_from_selected_result()
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            lyrics = self.fetch_lyrics_from_url(data["url"])
-        except Exception as exc:
-            lyrics = ""
-            error_message = str(exc)
-        else:
-            error_message = ""
-        finally:
-            QApplication.restoreOverrideCursor()
+        lyrics = self.fetch_lyrics_from_url(data["url"])
 
         if not lyrics:
             QMessageBox.warning(
                 self,
                 "Música",
                 "Não consegui carregar a letra automaticamente desse resultado.\n\n"
-                "Tente outro resultado da lista ou use a opção de copiar/colar a letra autorizada."
-                + (f"\n\nDetalhe: {error_message}" if error_message else ""),
+                "Tente outro resultado da lista ou use a opção de copiar/colar a letra autorizada.",
             )
             return
 
@@ -323,20 +316,26 @@ class OnlineSongSearchDialog(QDialog):
         self.open_editor_with_current_data()
 
     def fetch_lyrics_from_url(self, url):
-        """Download a result page and return the most likely plain lyrics block."""
-        request = urllib.request.Request(
-            url,
+        """Download a result page and return the most likely plain lyrics block.
+
+        Runs the HTTP request on a background QThread (see background_tasks)
+        so a slow lyric site cannot freeze the dialog.
+        """
+        from background_tasks import fetch_url_in_background
+        raw, charset = fetch_url_in_background(
+            self, url,
             headers={
                 "User-Agent": (
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                     "AppleWebKit/537.36 ScreenChurch/1.0"
-                )
+                ),
             },
+            timeout=15,
+            title="Carregando letra",
         )
-        with urllib.request.urlopen(request, timeout=15) as response:
-            raw = response.read()
-            charset = response.headers.get_content_charset() or "utf-8"
-        html = raw.decode(charset, errors="ignore")
+        if raw is None:
+            return ""
+        html = raw.decode(charset or "utf-8", errors="ignore")
         return self.extract_lyrics_from_html(html)
 
     def extract_lyrics_from_html(self, html):

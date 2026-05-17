@@ -349,6 +349,49 @@ class MediaWidget(QWidget):
         if self.bg_vlc_player:
             self.bg_vlc_player.stop()
 
+    def cleanup(self):
+        """Release native VLC resources held by this widget.
+
+        VLC objects (`vlc.Instance`, `MediaPlayer`) are allocated in C and are
+        not freed by Python's garbage collector. Without an explicit release,
+        each panel removal / window close leaks native handles and audio
+        device claims. Call this before deleteLater() on the widget.
+        """
+        # Stop the status timer first to avoid touching a freed player.
+        if getattr(self, "status_timer", None):
+            try:
+                self.status_timer.stop()
+            except RuntimeError:
+                pass
+
+        try:
+            self.media_player.stop()
+        except (AttributeError, RuntimeError):
+            pass
+
+        for attr in ("vlc_player", "bg_vlc_player"):
+            player = getattr(self, attr, None)
+            if player is None:
+                continue
+            try:
+                player.stop()
+            except Exception:
+                pass
+            try:
+                player.release()
+            except Exception:
+                pass
+            setattr(self, attr, None)
+
+        if self.vlc_instance is not None:
+            try:
+                self.vlc_instance.release()
+            except Exception:
+                pass
+            self.vlc_instance = None
+
+        self._vlc_available = False
+
     @staticmethod
     def _html_escape(text):
         return (
