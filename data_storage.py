@@ -136,6 +136,11 @@ class DataStorageMixin:
             counter += 1
         return candidate
 
+    # Files this large or larger are copied on a background QThread with a
+    # cancellable progress dialog. Smaller files keep the simpler shutil path
+    # because the synchronous copy completes in a few hundred milliseconds.
+    LARGE_FILE_BYTES = 50 * 1024 * 1024
+
     def copy_into_data_folder(self, source_path, relative_folder):
         if not source_path or not os.path.exists(source_path):
             return source_path
@@ -146,6 +151,22 @@ class DataStorageMixin:
                 return source_path
         except ValueError:
             pass
+
+        try:
+            size = os.path.getsize(source_path)
+        except OSError:
+            size = 0
+
+        if size >= self.LARGE_FILE_BYTES:
+            # Lazy import: data_storage.py is also used outside of a QApplication
+            # context (tests, headless tooling). The progress dialog is only
+            # needed when a QMainWindow is the host.
+            from background_tasks import copy_file_to_folder
+            destination = copy_file_to_folder(self, source_path, destination_folder)
+            if destination:
+                return destination
+            return source_path
+
         destination = self.unique_destination(destination_folder, source_path)
         shutil.copy2(source_path, destination)
         return destination

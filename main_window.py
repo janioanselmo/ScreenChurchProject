@@ -1454,7 +1454,10 @@ class MainWindow(
         self.enforce_video_audio_policy()
         if track_recent:
             self.record_recent_media(panel_index, filename)
-            self.add_to_media_library(filename)
+            # Reference the original path in the library without copying. Large
+            # videos used to copy synchronously here and could freeze/kill the
+            # app. Explicit "Adicionar mídias" still copies into the data folder.
+            self.register_media_reference(filename)
         self.refresh_panel_status(panel_index)
         self.update_global_status()
         self.sync_preview_panel_to_projection(panel_index)
@@ -1987,8 +1990,43 @@ class MainWindow(
         self.save_local_libraries()
 
     def add_to_media_library(self, filepath):
-        filepath = self.import_media_file(filepath)
-        if filepath not in self.media_library and os.path.exists(filepath):
+        """Explicit add: copy the file into ScreenChurchData and index it.
+
+        Used by the "Adicionar mídias" / "Adicionar pasta" menu actions. The
+        copy itself is dispatched to a background worker so the UI does not
+        freeze on multi-gigabyte videos.
+        """
+        if not filepath or not os.path.exists(filepath):
+            return
+        try:
+            destination = self.import_media_file(filepath)
+        except OSError as error:
+            from error_handler import log_warning
+            log_warning(
+                f"Falha ao copiar mídia para a biblioteca: {filepath} -> {error}"
+            )
+            QMessageBox.warning(
+                self,
+                "Não foi possível copiar",
+                f"Falha ao copiar o arquivo para a biblioteca:\n{error}",
+            )
+            return
+        if destination and destination not in self.media_library and os.path.exists(destination):
+            self.media_library.append(destination)
+
+    def register_media_reference(self, filepath):
+        """Index a media path without copying anything.
+
+        Called from load_panel_media when the operator just loads a file into
+        a panel. Keeps a pointer in self.media_library so the file shows up in
+        the side list, but never blocks the UI on a large copy.
+        """
+        if not filepath:
+            return
+        filepath = os.path.abspath(filepath)
+        if not os.path.exists(filepath):
+            return
+        if filepath not in self.media_library:
             self.media_library.append(filepath)
 
     def clear_media_library(self):

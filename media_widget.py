@@ -315,7 +315,14 @@ class MediaWidget(QWidget):
             if self._vlc_available and self.bg_vlc_player:
                 try:
                     self._attach_vlc_to_text_background()
-                    media = self.vlc_instance.media_new(os.path.abspath(background_path))
+                    abs_path = os.path.abspath(background_path)
+                    media = (
+                        self.vlc_instance.media_new_path(abs_path)
+                        if hasattr(self.vlc_instance, "media_new_path")
+                        else self.vlc_instance.media_new(abs_path)
+                    )
+                    if media is None:
+                        raise RuntimeError("VLC não retornou mídia para o fundo.")
                     self.bg_vlc_player.set_media(media)
                     self.bg_vlc_player.audio_set_mute(True)
                     self.text_background_stack.setCurrentWidget(self.text_background_video)
@@ -387,7 +394,21 @@ class MediaWidget(QWidget):
             return False
         try:
             self._attach_vlc_to_widget()
-            media = self.vlc_instance.media_new(filepath)
+            # media_new_path resolves Unicode/long-path quirks better than
+            # media_new on Windows. Some python-vlc builds segfault on
+            # media_new() when the path contains accented characters.
+            media = (
+                self.vlc_instance.media_new_path(filepath)
+                if hasattr(self.vlc_instance, "media_new_path")
+                else self.vlc_instance.media_new(filepath)
+            )
+            if media is None:
+                self.mediaError.emit(
+                    self.build_error_message(
+                        extra_detail="VLC não conseguiu abrir o arquivo."
+                    )
+                )
+                return False
             self.vlc_player.set_media(media)
             self.set_muted(self._muted, force=True)
             return True
@@ -405,13 +426,34 @@ class MediaWidget(QWidget):
         if output_widget is None:
             output_widget = self._video_output_widget or self.vlc_video_widget
         self._video_output_widget = output_widget
-        window_id = int(output_widget.winId())
-        if sys.platform.startswith("win"):
-            self.vlc_player.set_hwnd(window_id)
-        elif sys.platform == "darwin":
-            self.vlc_player.set_nsobject(window_id)
-        else:
-            self.vlc_player.set_xwindow(window_id)
+
+        # Make sure the native window exists before VLC writes to its handle.
+        # winId() on an unrealized QWidget can return 0 on Windows, which
+        # causes VLC to render to NULL and either show a black frame or crash
+        # on the next surface refresh.
+        output_widget.setAttribute(Qt.WA_NativeWindow, True)
+        if not output_widget.testAttribute(Qt.WA_WState_Created):
+            output_widget.create()
+        try:
+            window_id = int(output_widget.winId())
+        except (TypeError, ValueError):
+            return
+        if not window_id:
+            return
+
+        try:
+            if sys.platform.startswith("win"):
+                self.vlc_player.set_hwnd(window_id)
+            elif sys.platform == "darwin":
+                self.vlc_player.set_nsobject(window_id)
+            else:
+                self.vlc_player.set_xwindow(window_id)
+        except Exception as exc:
+            self.mediaError.emit(
+                self.build_error_message(
+                    extra_detail=f"Falha ao vincular superfície VLC: {exc}"
+                )
+            )
 
     def load_video_with_qt(self, filepath):
         self.media_player.setMedia(QMediaContent())
